@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:dio/io.dart';
-
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class AuthRepository {
-  static const String _baseUrl = 'http://smartcareerhub.runasp.net/api';
+  static const String _baseUrl = 'https://smartcareerhub.runasp.net/api';
 
   final Dio _dio = Dio(
     BaseOptions(
@@ -363,7 +363,6 @@ class AuthRepository {
         'City': city,
       };
 
-      // ✅ 1. Log map fields before FormData
       debugPrint("══════════════════════════════");
       debugPrint("🚀 COMPANY REGISTER REQUEST");
       debugPrint("══════════════════════════════");
@@ -371,24 +370,25 @@ class AuthRepository {
         debugPrint("🔹 $key : $value");
       });
 
+      // ✅ الصورة اختيارية — لو مفيش صورة نبعت بدونها
       if (organizationLogo != null) {
         debugPrint("🖼️ ORIGINAL IMAGE:");
         debugPrint("path: ${organizationLogo.path}");
         debugPrint("size: ${organizationLogo.lengthSync()} bytes");
 
-        // ✅ Compress using dart:ui — no external package needed
         final Uint8List compressedBytes = await _compressImage(organizationLogo);
         debugPrint("✅ COMPRESSED size: ${compressedBytes.length} bytes");
 
+        // ✅ إضافة contentType صريح لتجنب رفض السيرفر
         map['OrganizationLogo'] = MultipartFile.fromBytes(
           compressedBytes,
           filename: organizationLogo.path.split('/').last,
+          contentType: DioMediaType('image', 'jpeg'),
         );
       }
 
       FormData formData = FormData.fromMap(map);
 
-      // ✅ 3. Log FormData fields and files
       debugPrint("════════ FORM DATA ════════");
       formData.fields.forEach((f) {
         debugPrint("🔹 ${f.key} : ${f.value}");
@@ -398,23 +398,24 @@ class AuthRepository {
         debugPrint("🔹 ${file.key} -> ${file.value.filename}");
       }
 
-      // ✅ 4. Log before sending request
       debugPrint("📤 SENDING REQUEST NOW...");
+
+      // ✅ إزالة followRedirects: false — كانت سبب قطع الاتصال
       Response response = await _dio.post(
         'CompanyAuth/register',
         data: formData,
         options: Options(
           validateStatus: (status) => true,
-          followRedirects: false,
         ),
       );
 
       // ✅ Handle 307 redirect manually to preserve POST body
-      if (response.statusCode == 307 || response.statusCode == 301 || response.statusCode == 302) {
+      if (response.statusCode == 307 ||
+          response.statusCode == 301 ||
+          response.statusCode == 302) {
         final redirectUrl = response.headers.value('location');
         debugPrint("↪️ Redirecting to: $redirectUrl");
         if (redirectUrl != null) {
-          // rebuild FormData because it can only be sent once
           final newMap = <String, dynamic>{
             'Email': email,
             'Password': password,
@@ -429,6 +430,7 @@ class AuthRepository {
             newMap['OrganizationLogo'] = MultipartFile.fromBytes(
               bytes,
               filename: organizationLogo.path.split('/').last,
+              contentType: DioMediaType('image', 'jpeg'),
             );
           }
           response = await _dio.post(
@@ -444,7 +446,6 @@ class AuthRepository {
       debugPrint('📥 Response Data: ${response.data}');
       return response;
     } catch (e) {
-      // ✅ 5. Detailed error logging
       debugPrint("══════════════════════════════");
       debugPrint("❌ ERROR OCCURRED");
       debugPrint("══════════════════════════════");
@@ -459,19 +460,22 @@ class AuthRepository {
     }
   }
 
-  // ─── Image Compression (no external package) ─────────────────────────────────
-  Future<Uint8List> _compressImage(File imageFile) async {
-    final Uint8List originalBytes = await imageFile.readAsBytes();
-    final ui.Codec codec = await ui.instantiateImageCodec(
-      originalBytes,
-      targetWidth: 800,  // max width
-      targetHeight: 800, // max height
+  // ─── Image Compression ────────────────────────────────────────────────────────
+  Future<Uint8List> _compressImage(File file) async {
+    final result = await FlutterImageCompress.compressWithFile(
+      file.absolute.path,
+      quality: 25,
+      minWidth: 500,
+      minHeight: 500,
+      format: CompressFormat.jpeg,
     );
-    final ui.FrameInfo frameInfo = await codec.getNextFrame();
-    final ByteData? byteData = await frameInfo.image.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    return byteData!.buffer.asUint8List();
+
+    if (result == null) {
+      throw Exception("Image compression failed");
+    }
+
+    print("🔥 NEW SIZE: ${result.length} bytes");
+    return result;
   }
 
   // ─── Helper: Get auth route prefix ───────────────────────────────────────────

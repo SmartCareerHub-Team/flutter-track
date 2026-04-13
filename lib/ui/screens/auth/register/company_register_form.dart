@@ -18,7 +18,6 @@ class CompanyRegisterForm extends StatefulWidget {
 class _CompanyRegisterFormState extends State<CompanyRegisterForm> {
   final _formKey = GlobalKey<FormState>();
 
-  // ✅ Fields matching Postman: FirstName, LastName, OrganizationName, Email, Password, Country, City
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _organizationNameController = TextEditingController();
@@ -62,7 +61,6 @@ class _CompanyRegisterFormState extends State<CompanyRegisterForm> {
     try {
       final authRepo = AuthRepository();
 
-      // ✅ Matches Postman fields exactly
       final response = await authRepo.registerCompany(
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
@@ -176,6 +174,8 @@ class _CompanyRegisterFormState extends State<CompanyRegisterForm> {
               v?.isEmpty ?? true ? 'Email is required' : null,
             ),
             const SizedBox(height: 12),
+
+            // ── Password Field (مع الـ validator الجديد) ───────────────────
             _buildTextField(
               controller: _passwordController,
               label: 'Password *',
@@ -188,9 +188,17 @@ class _CompanyRegisterFormState extends State<CompanyRegisterForm> {
                 onPressed: () =>
                     setState(() => _obscurePassword = !_obscurePassword),
               ),
-              validator: (v) => (v?.length ?? 0) < 8
-                  ? 'Password must be at least 8 characters'
-                  : null,
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Password is required';
+                if (v.length < 8) return 'Password must be at least 8 characters';
+                if (!RegExp(r'[A-Z]').hasMatch(v))
+                  return 'Must contain at least one uppercase letter';
+                if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(v))
+                  return 'Must contain at least one special character';
+                if (!RegExp(r'[0-9]').hasMatch(v))
+                  return 'Must contain at least one number';
+                return null;
+              },
             ),
             const SizedBox(height: 24),
 
