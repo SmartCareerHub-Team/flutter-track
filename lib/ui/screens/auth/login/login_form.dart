@@ -7,9 +7,6 @@ import '../../../../data/repositories/Student auth repository.dart';
 import '../../../../data/repositories/Training center auth repository.dart';
 import '../../../../data/repositories/University auth repository.dart';
 import '../../../../data/repositories/company_auth_repository.dart';
-import '../../users/Graduate/GraduateHome.dart';
-import '../../users/Student/StudentHomeScreen.dart';
-import '../../users/Trainning Center/TrainningCenterHome.dart';
 import '../../users/company/pages/com-dashboard.dart';
 import '../../users/university/pages/unidashboard.dart';
 // TODO: استبدل بالـ dashboards الصح لما تعملهم
@@ -141,77 +138,77 @@ class _LoginFormState extends State<LoginForm> {
       // ══════════════════════════════════════════
       // Graduate
       // ══════════════════════════════════════════
-        case 'graduate':
-          final repo     = GraduateAuthRepository();
-          final response = await repo.login(email, password);
-
-          if (response.statusCode == 200) {
-            _showSnackBar('Graduate Login successful!', Colors.green);
-            if (mounted) {
-              // TODO: استبدل بـ GraduateDashboard لما تعمله
-               Navigator.pushReplacement(
-                 context,
-                 MaterialPageRoute(builder: (_) => const GraduateHomeScreen()),
-               );
-            }
-          } else {
-            final msg = response.data?['message']
-                ?? response.data?['error']
-                ?? response.data?['title']
-                ?? 'Login failed';
-            _showSnackBar(msg.toString(), Colors.red);
-          }
-          break;
+      //   case 'graduate':
+      //     final repo     = GraduateAuthRepository();
+      //     final response = await repo.login(email, password);
+      //
+      //     if (response.statusCode == 200) {
+      //       _showSnackBar('Graduate Login successful!', Colors.green);
+      //       if (mounted) {
+      //         // TODO: استبدل بـ GraduateDashboard لما تعمله
+      //          Navigator.pushReplacement(
+      //            context,
+      //            MaterialPageRoute(builder: (_) => const GraduateHomeScreen()),
+      //          );
+      //       }
+      //     } else {
+      //       final msg = response.data?['message']
+      //           ?? response.data?['error']
+      //           ?? response.data?['title']
+      //           ?? 'Login failed';
+      //       _showSnackBar(msg.toString(), Colors.red);
+      //     }
+      //     break;
 
       // ══════════════════════════════════════════
       // Student
       // ══════════════════════════════════════════
-        case 'student':
-          final repo     = StudentAuthRepository();
-          final response = await repo.login(email, password);
-
-          if (response.statusCode == 200) {
-            _showSnackBar('Student Login successful!', Colors.green);
-            if (mounted) {
-              // TODO: استبدل بـ StudentDashboard لما تعمله
-               Navigator.pushReplacement(
-                 context,
-                 MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
-               );
-            }
-          } else {
-            final msg = response.data?['message']
-                ?? response.data?['error']
-                ?? response.data?['title']
-                ?? 'Login failed';
-            _showSnackBar(msg.toString(), Colors.red);
-          }
-          break;
+      //   case 'student':
+      //     final repo     = StudentAuthRepository();
+      //     final response = await repo.login(email, password);
+      //
+      //     if (response.statusCode == 200) {
+      //       _showSnackBar('Student Login successful!', Colors.green);
+      //       if (mounted) {
+      //         // TODO: استبدل بـ StudentDashboard لما تعمله
+      //          Navigator.pushReplacement(
+      //            context,
+      //            MaterialPageRoute(builder: (_) => const StudentHomeScreen()),
+      //          );
+      //       }
+      //     } else {
+      //       final msg = response.data?['message']
+      //           ?? response.data?['error']
+      //           ?? response.data?['title']
+      //           ?? 'Login failed';
+      //       _showSnackBar(msg.toString(), Colors.red);
+      //     }
+      //     break;
 
       // ══════════════════════════════════════════
       // Training Center
       // ══════════════════════════════════════════
-        case 'training_center':
-          final repo     = TrainingCenterAuthRepository();
-          final response = await repo.login(email, password);
-
-          if (response.statusCode == 200) {
-            _showSnackBar('Training Center Login successful!', Colors.green);
-            if (mounted) {
-              // TODO: استبدل بـ TrainingCenterDashboard لما تعمله
-               Navigator.pushReplacement(
-                 context,
-                 MaterialPageRoute(builder: (_) => const TrainingHomeScreen()),
-               );
-            }
-          } else {
-            final msg = response.data?['message']
-                ?? response.data?['error']
-                ?? response.data?['title']
-                ?? 'Login failed';
-            _showSnackBar(msg.toString(), Colors.red);
-          }
-          break;
+      //   case 'training_center':
+      //     final repo     = TrainingCenterAuthRepository();
+      //     final response = await repo.login(email, password);
+      //
+      //     if (response.statusCode == 200) {
+      //       _showSnackBar('Training Center Login successful!', Colors.green);
+      //       if (mounted) {
+      //         // TODO: استبدل بـ TrainingCenterDashboard لما تعمله
+      //          Navigator.pushReplacement(
+      //            context,
+      //            MaterialPageRoute(builder: (_) => const TrainingHomeScreen()),
+      //          );
+      //       }
+      //     } else {
+      //       final msg = response.data?['message']
+      //           ?? response.data?['error']
+      //           ?? response.data?['title']
+      //           ?? 'Login failed';
+      //       _showSnackBar(msg.toString(), Colors.red);
+      //     }
+      //     break;
 
         default:
           _showSnackBar('Unknown account type', Colors.red);
