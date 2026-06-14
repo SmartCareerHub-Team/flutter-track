@@ -8,11 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../../../../../data/repositories/Event repository.dart';
+import '../../../../../../data/repositories/Eventuni repository.dart';
 import '../../../../../widgets/common/CustomDropdown.dart';
 import '../../../../../widgets/common/action_button.dart';
-import '../../../company/pages/Event/addnewevent.dart';
+import 'CreateEditEventScreen.dart';
 
 
 
@@ -36,15 +35,11 @@ class EventBannerWidget extends StatelessWidget {
     final bannerType  = event['bannerType']?.toString();
     final bannerValue = event['bannerValue']?.toString();
 
-    // ── Base64 image ──────────────────────────────────────────────────────
     if (bannerType == 'base64' && bannerValue != null && bannerValue.isNotEmpty) {
       try {
         final Uint8List bytes = base64Decode(bannerValue);
         return Image.memory(
-          bytes,
-          height: height,
-          width: double.infinity,
-          fit: BoxFit.cover,
+          bytes, height: height, width: double.infinity, fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _placeholder(),
         );
       } catch (e) {
@@ -53,22 +48,13 @@ class EventBannerWidget extends StatelessWidget {
       }
     }
 
-    // ── URL image ─────────────────────────────────────────────────────────
     if (bannerType == 'url' && bannerValue != null && bannerValue.isNotEmpty) {
       return Image.network(
-        bannerValue,
-        height: height,
-        width: double.infinity,
-        fit: BoxFit.cover,
+        bannerValue, height: height, width: double.infinity, fit: BoxFit.cover,
         loadingBuilder: (_, child, progress) {
           if (progress == null) return child;
-          return Container(
-            height: height,
-            color: Colors.grey[200],
-            child: const Center(
-              child: CircularProgressIndicator(color: Color(0xff1676C4)),
-            ),
-          );
+          return Container(height: height, color: Colors.grey[200],
+              child: const Center(child: CircularProgressIndicator(color: Color(0xff1676C4))));
         },
         errorBuilder: (_, error, __) {
           debugPrint("❌ [URL IMAGE ERROR]: $error | url: $bannerValue");
@@ -77,33 +63,25 @@ class EventBannerWidget extends StatelessWidget {
       );
     }
 
-    // ── Placeholder ───────────────────────────────────────────────────────
     return _placeholder();
   }
 
   Widget _placeholder() => Container(
-    height: height,
-    width: double.infinity,
+    height: height, width: double.infinity,
     decoration: BoxDecoration(
       gradient: LinearGradient(
         colors: isPublished
             ? [const Color(0xff1676C4), const Color(0xff42a5f5)]
             : [Colors.orange.shade400, Colors.orange.shade200],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
       ),
     ),
-    child: Center(
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.event, color: Colors.white, size: 36),
-        const SizedBox(height: 4),
-        Text(
-          event['eventType'] ?? event['type'] ?? '',
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-        ),
-      ]),
-    ),
+    child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      const Icon(Icons.event, color: Colors.white, size: 36),
+      const SizedBox(height: 4),
+      Text(event['eventType'] ?? event['type'] ?? '',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+    ])),
   );
 }
 
@@ -114,11 +92,7 @@ class EventThumbnailWidget extends StatelessWidget {
   final Map<String, dynamic> event;
   final double size;
 
-  const EventThumbnailWidget({
-    super.key,
-    required this.event,
-    this.size = 70,
-  });
+  const EventThumbnailWidget({super.key, required this.event, this.size = 70});
 
   @override
   Widget build(BuildContext context) {
@@ -130,35 +104,27 @@ class EventThumbnailWidget extends StatelessWidget {
     if (bannerType == 'base64' && bannerValue != null && bannerValue.isNotEmpty) {
       try {
         final bytes = base64Decode(bannerValue);
-        imageWidget = Image.memory(bytes,
-            width: size, height: size, fit: BoxFit.cover,
+        imageWidget = Image.memory(bytes, width: size, height: size, fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _fallback());
       } catch (_) {
         imageWidget = _fallback();
       }
     } else if (bannerType == 'url' && bannerValue != null && bannerValue.isNotEmpty) {
-      imageWidget = Image.network(bannerValue,
-          width: size, height: size, fit: BoxFit.cover,
-          loadingBuilder: (_, child, p) => p == null
-              ? child
-              : SizedBox(width: size, height: size,
-              child: const Center(child: SizedBox(width: 20, height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xff1676C4))))),
+      imageWidget = Image.network(bannerValue, width: size, height: size, fit: BoxFit.cover,
+          loadingBuilder: (_, child, p) => p == null ? child :
+          SizedBox(width: size, height: size, child: const Center(child: SizedBox(width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xff1676C4))))),
           errorBuilder: (_, __, ___) => _fallback());
     } else {
       imageWidget = _fallback();
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: imageWidget,
-    );
+    return ClipRRect(borderRadius: BorderRadius.circular(8), child: imageWidget);
   }
 
   Widget _fallback() => Container(
     width: size, height: size,
-    decoration: BoxDecoration(
-        color: Colors.grey[200], borderRadius: BorderRadius.circular(8)),
+    decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8)),
     child: Icon(Icons.event, color: Colors.grey[400], size: size * 0.5),
   );
 }
@@ -168,15 +134,15 @@ class EventThumbnailWidget extends StatelessWidget {
 // EVENTS SCREEN
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class EventsScreen extends StatefulWidget {
-  const EventsScreen({super.key});
+class EventsUniScreen extends StatefulWidget {
+  const EventsUniScreen({super.key});
 
   @override
-  State<EventsScreen> createState() => _EventsScreenState();
+  State<EventsUniScreen> createState() => _EventsUniScreenState();
 }
 
-class _EventsScreenState extends State<EventsScreen> {
-  final eventRepo = EventRepository();
+class _EventsUniScreenState extends State<EventsUniScreen> {
+  final eventRepo = EventUniRepository();
 
   final List<Map<String, dynamic>> events       = [];
   final List<Map<String, dynamic>> eventHistory = [];
@@ -249,8 +215,7 @@ class _EventsScreenState extends State<EventsScreen> {
       if (!mounted) return;
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load events: $e'),
-              backgroundColor: Colors.red));
+          SnackBar(content: Text('Failed to load events: $e'), backgroundColor: Colors.red));
     }
   }
 
@@ -341,8 +306,7 @@ class _EventsScreenState extends State<EventsScreen> {
       setState(() { events.add(r); eventHistory.remove(r); applyFilters(); });
       await _saveHistoryToStorage();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${r['title']} restored!'),
-              backgroundColor: Colors.green));
+          SnackBar(content: Text('${r['title']} restored!'), backgroundColor: Colors.green));
     } else if (result['action'] == 'deleted') {
       setState(() => eventHistory.remove(result['event']));
       await _saveHistoryToStorage();
@@ -371,12 +335,13 @@ class _EventsScreenState extends State<EventsScreen> {
     return Scaffold(
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Padding(
-        // ✅ الـ FAB يرتفع فوق الـ pagination bar + bottom nav bar
-        padding: const EdgeInsets.only(bottom: kBottomNavigationBarHeight + 60),
+        padding: EdgeInsets.only(
+          bottom: kBottomNavigationBarHeight + MediaQuery.of(context).viewPadding.bottom + 16,
+        ),
         child: FloatingActionButton(
           onPressed: () async {
             final result = await Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const CreateEditEventScreen(eventData: null)));
+                MaterialPageRoute(builder: (_) => const CreateEditEventUniScreen(eventData: null)));
             if (result == true && mounted) await _fetchEvents();
           },
           backgroundColor: const Color(0xff1676C4),
@@ -442,7 +407,7 @@ class _EventsScreenState extends State<EventsScreen> {
     child: Row(children: [
       Expanded(child: TextField(
         decoration: InputDecoration(
-            hintText: "Search events...",
+            hintText: "Search ",
             prefixIcon: const Icon(Icons.search, color: Color(0xff1676C4)),
             filled: true, fillColor: Colors.white,
             enabledBorder: OutlineInputBorder(
@@ -489,26 +454,20 @@ class _EventsScreenState extends State<EventsScreen> {
           },
         ),
       )),
-      _buildPagination(), // ✅
+      _buildPagination(),
     ]),
   );
 
-  // ✅ التعديل هنا: الأرقام ترتفع فوق الـ bottom nav bar
   Widget _buildPagination() {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    const bottomNavHeight = kBottomNavigationBarHeight; // = 56.0
-
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 19 + bottomPadding + bottomNavHeight),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottomPadding),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [
-          BoxShadow(
+        boxShadow: [BoxShadow(
             color: Colors.black.withOpacity(0.06),
             blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
+            offset: const Offset(0, -2))],
       ),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         _pageBtn('«', false, _currentPage > 1, () => setState(() => _currentPage--)),
@@ -553,7 +512,6 @@ class _EventsScreenState extends State<EventsScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-        // ── Banner ✅ يدعم URL و Base64 ────────────────────────────────────
         ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
           child: EventBannerWidget(event: e, height: 150, isPublished: isPublished),
@@ -606,16 +564,14 @@ class _EventsScreenState extends State<EventsScreen> {
             const SizedBox(height: 16),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               ActionButton(
-                icon: Icons.edit, text: "Edit",
-                color: const Color(0xff1676C4),
+                icon: Icons.edit, text: "Edit", color: const Color(0xff1676C4),
                 onTap: () async {
                   final result = await Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => CreateEditEventScreen(eventData: e)));
+                      MaterialPageRoute(builder: (_) => CreateEditEventUniScreen(eventData: e)));
                   if (result == true && mounted) {
                     await _fetchEvents();
                     ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Event updated!'),
-                            backgroundColor: Colors.green));
+                        const SnackBar(content: Text('Event updated!'), backgroundColor: Colors.green));
                   }
                 },
               ),
@@ -656,7 +612,7 @@ class EventHistoryScreen extends StatefulWidget {
 }
 
 class _EventHistoryScreenState extends State<EventHistoryScreen> {
-  final EventRepository eventRepo = EventRepository();
+  final EventUniRepository eventRepo = EventUniRepository();
   String _searchQuery = '';
   String _sortBy      = 'date';
   bool   _isDeleting  = false;
@@ -737,8 +693,7 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
             Icon(Icons.warning_rounded, color: Colors.red[700], size: 24),
             const SizedBox(width: 10),
             Expanded(child: Text('⚠️ This action CANNOT be undone!',
-                style: TextStyle(fontWeight: FontWeight.bold,
-                    color: Colors.red[700], fontSize: 14))),
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red[700], fontSize: 14))),
           ]),
         ),
         const SizedBox(height: 12),
@@ -774,27 +729,23 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
     try {
       final response = await eventRepo.deleteEvent(id);
       if (!mounted) { setState(() => _isDeleting = false); return; }
-      if (response != null &&
-          [200, 204, 404].contains(response.statusCode)) {
+      if (response != null && [200, 204, 404].contains(response.statusCode)) {
         setState(() {
           widget.eventHistory.removeWhere((x) => x['id'] == e['id']);
           _isDeleting = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Event deleted permanently'),
-            backgroundColor: Colors.red));
+            content: Text('Event deleted permanently'), backgroundColor: Colors.red));
         Navigator.pop(context, {'action': 'deleted', 'event': e});
       } else {
         setState(() => _isDeleting = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Delete failed: ${response?.statusCode}'),
-            backgroundColor: Colors.red));
+            content: Text('Delete failed: ${response?.statusCode}'), backgroundColor: Colors.red));
       }
     } on DioException catch (err) {
       setState(() => _isDeleting = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Network error: ${err.message}'),
-          backgroundColor: Colors.red));
+          content: Text('Network error: ${err.message}'), backgroundColor: Colors.red));
     } catch (err) {
       setState(() => _isDeleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -863,8 +814,7 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
                     : null,
                 filled: true, fillColor: Colors.white,
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none),
+                    borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
@@ -876,8 +826,7 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
                   size: 80, color: Colors.grey[400]),
               const SizedBox(height: 16),
               Text(_searchQuery.isEmpty ? "No deleted events yet." : "No results found",
-                  style: TextStyle(fontSize: 18, color: Colors.grey[600],
-                      fontWeight: FontWeight.w500)),
+                  style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.w500)),
             ]))
                 : ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -889,8 +838,7 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
                   direction: DismissDirection.endToStart,
                   background: Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                        color: Colors.red, borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
                     alignment: Alignment.centerRight,
                     padding: const EdgeInsets.only(right: 20),
                     child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -910,18 +858,15 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
                         padding: const EdgeInsets.all(12),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            // ✅ Thumbnail يدعم URL و Base64
                             EventThumbnailWidget(event: e, size: 70),
                             const SizedBox(width: 12),
-                            Expanded(child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(e['title'] ?? 'No Title',
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                   maxLines: 2, overflow: TextOverflow.ellipsis),
                               if (e['description'] != null) ...[
                                 const SizedBox(height: 4),
-                                Text(e['description'],
-                                    maxLines: 2, overflow: TextOverflow.ellipsis,
+                                Text(e['description'], maxLines: 2, overflow: TextOverflow.ellipsis,
                                     style: TextStyle(fontSize: 13, color: Colors.grey[700])),
                               ],
                               const SizedBox(height: 8),
@@ -929,9 +874,7 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
                                 scrollDirection: Axis.horizontal,
                                 child: Row(children: [
                                   if (e['eventType'] != null || e['type'] != null)
-                                    _historyChip(Icons.category,
-                                        e['eventType'] ?? e['type'] ?? '',
-                                        Colors.blue),
+                                    _historyChip(Icons.category, e['eventType'] ?? e['type'] ?? '', Colors.blue),
                                   if (e['mode'] != null) ...[
                                     const SizedBox(width: 8),
                                     _historyChip(Icons.computer, e['mode'], Colors.purple),
@@ -943,8 +886,7 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
                                 Icon(Icons.access_time, size: 14, color: Colors.red[400]),
                                 const SizedBox(width: 4),
                                 Text(_ago(e['deletedAt']),
-                                    style: TextStyle(fontSize: 12,
-                                        color: Colors.red[600], fontWeight: FontWeight.w500)),
+                                    style: TextStyle(fontSize: 12, color: Colors.red[600], fontWeight: FontWeight.w500)),
                               ]),
                             ])),
                           ]),
@@ -953,24 +895,16 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
                           Row(children: [
                             Expanded(child: TextButton.icon(
                               onPressed: _isDeleting ? null : () => _restore(e),
-                              icon: Icon(Icons.restore,
-                                  color: _isDeleting ? Colors.grey : Colors.green, size: 20),
-                              label: Text('Restore',
-                                  style: TextStyle(
-                                      color: _isDeleting ? Colors.grey : Colors.green)),
-                              style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 8)),
+                              icon: Icon(Icons.restore, color: _isDeleting ? Colors.grey : Colors.green, size: 20),
+                              label: Text('Restore', style: TextStyle(color: _isDeleting ? Colors.grey : Colors.green)),
+                              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
                             )),
                             Container(width: 1, height: 30, color: Colors.grey[300]),
                             Expanded(child: TextButton.icon(
                               onPressed: _isDeleting ? null : () => _deleteDialog(e),
-                              icon: Icon(Icons.delete_forever,
-                                  color: _isDeleting ? Colors.grey : Colors.red, size: 20),
-                              label: Text('Delete',
-                                  style: TextStyle(
-                                      color: _isDeleting ? Colors.grey : Colors.red)),
-                              style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 8)),
+                              icon: Icon(Icons.delete_forever, color: _isDeleting ? Colors.grey : Colors.red, size: 20),
+                              label: Text('Delete', style: TextStyle(color: _isDeleting ? Colors.grey : Colors.red)),
+                              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
                             )),
                           ]),
                         ]),
@@ -990,12 +924,10 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
             child: const Padding(padding: EdgeInsets.all(32),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xff1676C4)),
-                    strokeWidth: 3),
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xff1676C4)), strokeWidth: 3),
                 SizedBox(height: 20),
                 Text('Deleting permanently...',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold,
-                        color: Color(0xff1676C4))),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xff1676C4))),
               ]),
             ),
           )),
@@ -1022,8 +954,7 @@ class _EventHistoryScreenState extends State<EventHistoryScreen> {
               borderRadius: BorderRadius.circular(8)) : null,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(children: [
-            Icon(icon, size: 20,
-                color: _sortBy == v ? const Color(0xff1676C4) : Colors.grey[700]),
+            Icon(icon, size: 20, color: _sortBy == v ? const Color(0xff1676C4) : Colors.grey[700]),
             const SizedBox(width: 8),
             Text(label, style: TextStyle(
                 color: _sortBy == v ? const Color(0xff1676C4) : Colors.grey[800],

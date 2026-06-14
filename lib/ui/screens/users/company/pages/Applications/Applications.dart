@@ -1,4 +1,3 @@
-// ignore_for_file: avoid_print
 import 'package:flutter/material.dart';
 import '../../../../../../data/models/company/application-model.dart';
 import '../../../../../../data/repositories/Applications repository.dart';
@@ -54,7 +53,6 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
         if (_searchText.isEmpty) return true;
         final q = _searchText.toLowerCase();
         return app.applicantName.toLowerCase().contains(q) ||
-            app.email.toLowerCase().contains(q) ||
             app.position.toLowerCase().contains(q);
       }).toList();
     });
@@ -84,15 +82,29 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
 
   Future<void> _updateStatus(ApplicationModel app, String newStatus) async {
     setState(() => _isUpdating = true);
-    final ok = await _repo.updateApplicationStatus(app.id, newStatus);
+
+    final isInternship = app.applicationType == 'Internship';
+    final id           = isInternship ? (app.internshipId ?? 0) : (app.jobId ?? 0);
+
+    final ok = await _repo.updateApplicationStatus(
+      id,
+      app.id,
+      newStatus,
+      isInternship: isInternship,
+    );
+
     if (!mounted) return;
     final idx = _all.indexWhere((a) => a.id == app.id);
     if (idx != -1) {
-      setState(() { _all[idx] = app.copyWith(status: newStatus); _isUpdating = false; });
+      setState(() {
+        _all[idx] = app.copyWith(status: newStatus);
+        _isUpdating = false;
+      });
       _applyFilters();
     } else {
       setState(() => _isUpdating = false);
     }
+
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? 'Status updated to $newStatus' : 'Updated locally (network issue)'),
       backgroundColor: ok ? Colors.green : Colors.orange,
@@ -255,7 +267,7 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
     padding: const EdgeInsets.all(16),
     child: TextField(
       decoration: InputDecoration(
-        hintText: 'Search by name, email, position…',
+        hintText: 'Search by name or position…',
         prefixIcon: const Icon(Icons.search, color: Color(0xff1676C4)),
         suffixIcon: _searchText.isNotEmpty ? IconButton(icon: const Icon(Icons.clear), onPressed: () { setState(() => _searchText = ''); _applyFilters(); }) : null,
         filled: true,
@@ -286,73 +298,125 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
     ]),
   );
 
-  Widget _buildTable() => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    child: Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowHeight: 52,
-            dataRowMinHeight: 64,
-            dataRowMaxHeight: 80,
-            dividerThickness: 0.5,
-            headingRowColor: MaterialStateProperty.all(const Color(0xff1676C4).withOpacity(0.08)),
-            columns: [
-              _col('Applicant'),
-              _col('Contact'),
-              _col('Job'),
-              _col('Applied'),
-              _col('Status'),
-              _col('Actions'),
-            ],
-            rows: _filtered.map(_buildRow).toList(),
+  // ════════════════════════════════════════════════════════════════
+  // TABLE — columns & rows change based on selected tab
+  // ════════════════════════════════════════════════════════════════
+  Widget _buildTable() {
+    final isInternship = _selectedTab == 'Internship';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4))],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowHeight: 52,
+              dataRowMinHeight: 64,
+              dataRowMaxHeight: 80,
+              dividerThickness: 0.5,
+              headingRowColor: MaterialStateProperty.all(const Color(0xff1676C4).withOpacity(0.08)),
+              columns: [
+                _col('Applicant'),
+                _col(isInternship ? 'Internship' : 'Job'),
+                if (isInternship) _col('Duration'),
+                _col('Applied'),
+                _col('Status'),
+                _col('Actions'),
+              ],
+              rows: _filtered.map((app) => _buildRow(app, isInternship)).toList(),
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   DataColumn _col(String label) => DataColumn(
     label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xff1676C4))),
   );
 
-  DataRow _buildRow(ApplicationModel app) => DataRow(
-    color: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.hovered) ? Colors.grey[50] : null),
+  DataRow _buildRow(ApplicationModel app, bool isInternship) => DataRow(
+    color: MaterialStateProperty.resolveWith(
+            (states) => states.contains(MaterialState.hovered) ? Colors.grey[50] : null),
     cells: [
+      // ── Applicant ──
       DataCell(Row(children: [
         CircleAvatar(
           backgroundColor: const Color(0xff1676C4),
           radius: 18,
-          child: Text(app.applicantName.isNotEmpty ? app.applicantName[0] : '?', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          child: Text(
+            app.applicantName.isNotEmpty ? app.applicantName[0] : '?',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
         ),
         const SizedBox(width: 10),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text(app.applicantName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-          Text(app.degreeLevel != 'N/A' ? app.degreeLevel : 'Applicant', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-        ]),
-      ])),
-      DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-        Text(app.email.isNotEmpty ? app.email : '—', style: const TextStyle(fontSize: 12)),
-        if (app.phoneNumber != null && app.phoneNumber!.isNotEmpty)
-          Text(app.phoneNumber!, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-      ])),
-      DataCell(Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: const Color(0xff1676C4).withOpacity(0.08), borderRadius: BorderRadius.circular(6)),
-          child: Text(app.position, style: const TextStyle(fontSize: 12, color: Color(0xff1676C4))),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(app.applicantName,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(
+              app.degreeLevel != 'N/A' ? app.degreeLevel : 'Applicant',
+              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+            ),
+          ],
         ),
-        if (app.jobId != null)
-          Padding(padding: const EdgeInsets.only(top: 2), child: Text('Job #${app.jobId}', style: TextStyle(fontSize: 10, color: Colors.grey[500]))),
       ])),
-      DataCell(Text(app.appliedDate.isEmpty ? '—' : app.appliedDate, style: const TextStyle(fontSize: 12))),
+
+      // ── Position (Job title or Internship title + company) ──
+      DataCell(Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xff1676C4).withOpacity(0.08),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              app.position,
+              style: const TextStyle(fontSize: 12, color: Color(0xff1676C4)),
+            ),
+          ),
+          if (isInternship &&
+              app.companyName != null &&
+              app.companyName!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                app.companyName!,
+                style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+              ),
+            ),
+        ],
+      )),
+
+      // ── Duration (Internship tab only) ──
+      if (isInternship)
+        DataCell(Row(children: [
+          Icon(Icons.schedule_outlined, size: 13, color: Colors.grey[400]),
+          const SizedBox(width: 4),
+          Text(
+            app.year?.isNotEmpty == true ? app.year! : '—',
+            style: const TextStyle(fontSize: 12),
+          ),
+        ])),
+
+      // ── Applied Date ──
+      DataCell(Text(
+        app.appliedDate.isEmpty ? '—' : app.appliedDate,
+        style: const TextStyle(fontSize: 12),
+      )),
+
+      // ── Status ──
       DataCell(Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
@@ -363,18 +427,39 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(_statusIcon(app.status), size: 12, color: _statusColor(app.status)),
           const SizedBox(width: 4),
-          Text(app.status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _statusColor(app.status))),
+          Text(
+            app.status,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: _statusColor(app.status)),
+          ),
         ]),
       )),
+
+      // ── Actions ──
       DataCell(Row(children: [
-        _actionBtn(icon: Icons.person_outline, tooltip: 'View Profile', color: const Color(0xff1676C4), onTap: () => _showProfileDialog(app)),
+        _actionBtn(
+            icon: Icons.person_outline,
+            tooltip: 'View Profile',
+            color: const Color(0xff1676C4),
+            onTap: () => _showProfileDialog(app)),
         const SizedBox(width: 6),
-        _actionBtn(icon: Icons.edit_note, tooltip: 'Update Status', color: Colors.orange, onTap: () => _showStatusDialog(app)),
+        _actionBtn(
+            icon: Icons.edit_note,
+            tooltip: 'Update Status',
+            color: Colors.orange,
+            onTap: () => _showStatusDialog(app)),
       ])),
     ],
   );
 
-  Widget _actionBtn({required IconData icon, required String tooltip, required Color color, required VoidCallback onTap}) =>
+  Widget _actionBtn({
+    required IconData icon,
+    required String tooltip,
+    required Color color,
+    required VoidCallback onTap,
+  }) =>
       Tooltip(
         message: tooltip,
         child: InkWell(
@@ -382,7 +467,9 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8)),
             child: Icon(icon, size: 18, color: color),
           ),
         ),
@@ -419,7 +506,8 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
       child: ListTile(
         dense: true,
         leading: Icon(_statusIcon(status), color: _statusColor(status), size: 22),
-        title: Text(status, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+        title: Text(status,
+            style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
         trailing: isSelected ? Icon(Icons.check, color: _statusColor(status)) : null,
         onTap: () { Navigator.pop(context); _updateStatus(app, status); },
       ),
@@ -428,7 +516,7 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// PROFILE DIALOG WIDGET — Full UI
+// PROFILE DIALOG WIDGET
 // ══════════════════════════════════════════════════════════════════
 class _ProfileDialog extends StatelessWidget {
   final ApplicationModel app;
@@ -478,7 +566,12 @@ class _ProfileDialog extends StatelessWidget {
     final linkedin   = _s(basic, 'linkedIn',   _s(basic, 'linkedin', app.linkedIn ?? ''));
     final portfolio  = _s(basic, 'portfolio',  app.portfolio ?? '');
     final summary    = _s(basic, 'experienceSummary', _s(basic, 'bio'));
-    final photoUrl   = _s(basic, 'profileImage', _s(basic, 'profilePicture'));
+    final rawPhoto = _s(basic, 'profileImage', _s(basic, 'profilePicture'));
+    final photoUrl = rawPhoto.startsWith('http')
+        ? rawPhoto
+        : rawPhoto.isNotEmpty
+        ? 'http://smartcareerhub.runasp.net$rawPhoto'
+        : '';
     final cvUrl      = _s(basic, 'cvUrl',      app.cvUrl ?? '');
 
     final totalPoints       = _i(stats, 'totalPoints',          _i(stats, 'points'));
@@ -504,7 +597,6 @@ class _ProfileDialog extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
           child: Column(children: [
-
             Container(
               padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
               decoration: const BoxDecoration(
@@ -557,10 +649,7 @@ class _ProfileDialog extends StatelessWidget {
                   const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
                     child: Row(children: [
                       _MiniStat(value: '$totalPoints', label: 'Points', icon: Icons.bolt),
                       _StatDivider(),
@@ -857,13 +946,8 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2.5),
-        color: Colors.white.withOpacity(0.2),
-      ),
+      width: size, height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2.5), color: Colors.white.withOpacity(0.2)),
       child: ClipOval(
         child: photoUrl.isNotEmpty
             ? Image.network(photoUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _fallback())
@@ -874,19 +958,12 @@ class _Avatar extends StatelessWidget {
 
   Widget _fallback() => Container(
     color: Colors.white.withOpacity(0.2),
-    child: Center(
-      child: Text(
-        name.isNotEmpty ? name[0].toUpperCase() : '?',
-        style: TextStyle(color: Colors.white, fontSize: size * 0.38, fontWeight: FontWeight.bold),
-      ),
-    ),
+    child: Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: TextStyle(color: Colors.white, fontSize: size * 0.38, fontWeight: FontWeight.bold))),
   );
 }
 
 class _MiniStat extends StatelessWidget {
-  final String value;
-  final String label;
-  final IconData icon;
+  final String value; final String label; final IconData icon;
   const _MiniStat({required this.value, required this.label, required this.icon});
 
   @override
@@ -919,10 +996,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final String? url;
-  final bool highlight;
+  final IconData icon; final String text; final String? url; final bool highlight;
   const _InfoChip({required this.icon, required this.text, this.url, this.highlight = false});
 
   @override
@@ -944,20 +1018,9 @@ class _InfoChip extends StatelessWidget {
 }
 
 class _TimelineCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String trailing;
-  final String? description;
-  final Color color;
-  const _TimelineCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.trailing,
-    required this.color,
-    this.description,
-  });
+  final IconData icon; final String title; final String subtitle;
+  final String trailing; final String? description; final Color color;
+  const _TimelineCard({required this.icon, required this.title, required this.subtitle, required this.trailing, required this.color, this.description});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -965,26 +1028,15 @@ class _TimelineCard extends StatelessWidget {
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey[200]!)),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-        child: Icon(icon, size: 16, color: color),
-      ),
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 16, color: color)),
       const SizedBox(width: 10),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-          if (trailing.isNotEmpty)
-            Text(trailing, style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+          if (trailing.isNotEmpty) Text(trailing, style: TextStyle(fontSize: 10, color: Colors.grey[500])),
         ]),
-        if (subtitle.isNotEmpty) ...[
-          const SizedBox(height: 2),
-          Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-        ],
-        if (description != null && description!.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(description!, style: TextStyle(fontSize: 11, color: Colors.grey[500], height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
-        ],
+        if (subtitle.isNotEmpty) ...[const SizedBox(height: 2), Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey[600]))],
+        if (description != null && description!.isNotEmpty) ...[const SizedBox(height: 4), Text(description!, style: TextStyle(fontSize: 11, color: Colors.grey[500], height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis)],
       ])),
     ]),
   );
@@ -1014,9 +1066,10 @@ class _NoProfileCard extends StatelessWidget {
         if (app.phoneNumber?.isNotEmpty == true) _InfoChip(icon: Icons.phone_outlined,   text: app.phoneNumber!),
         if (app.university?.isNotEmpty == true)  _InfoChip(icon: Icons.school_outlined,  text: app.university!),
         if (app.major?.isNotEmpty == true)       _InfoChip(icon: Icons.book_outlined,    text: app.major!),
-        if (app.linkedIn?.isNotEmpty == true)    _InfoChip(icon: Icons.link,             text: 'LinkedIn',  url: app.linkedIn),
-        if (app.cvUrl?.isNotEmpty == true)       _InfoChip(icon: Icons.picture_as_pdf,   text: 'View CV',   url: app.cvUrl, highlight: true),
+        if (app.linkedIn?.isNotEmpty == true)    _InfoChip(icon: Icons.link,             text: 'LinkedIn', url: app.linkedIn),
+        if (app.cvUrl?.isNotEmpty == true)       _InfoChip(icon: Icons.picture_as_pdf,   text: 'View CV',  url: app.cvUrl, highlight: true),
       ]),
     ],
   ]);
 }
+

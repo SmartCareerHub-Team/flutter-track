@@ -366,13 +366,11 @@ class _MyRoadmapsScreenState extends State<MyRoadmapsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ نحسب ارتفاع الـ bottom nav bar مرة واحدة هنا
     final bottomNavBarHeight = kBottomNavigationBarHeight;
 
     return Scaffold(
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Padding(
-        // ✅ الـ FAB يرتفع فوق الـ pagination bar + bottom nav bar
         padding: EdgeInsets.only(
           bottom: bottomNavBarHeight + 60,
         ),
@@ -415,10 +413,7 @@ class _MyRoadmapsScreenState extends State<MyRoadmapsScreen> {
             backgroundColor: Colors.transparent,
             elevation: 0,
             toolbarHeight: 130,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
+            automaticallyImplyLeading: false, // ✅ شيل سهم الرجوع
             title: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -497,7 +492,7 @@ class _MyRoadmapsScreenState extends State<MyRoadmapsScreen> {
           Expanded(
             child: TextField(
               decoration: InputDecoration(
-                hintText: "Search...",
+                hintText: "Search",
                 prefixIcon:
                 const Icon(Icons.search, color: Color(0xff1676C4)),
                 filled: true,
@@ -526,7 +521,7 @@ class _MyRoadmapsScreenState extends State<MyRoadmapsScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10)),
               child: CustomDropdown(
-                items: const ["All", "Draft", "Published"],
+                items: const ["All", "Draft", "Published"], // Roadmaps لسه فيها Draft
                 value: selectedFilter,
                 onChanged: (value) {
                   setState(() {
@@ -595,16 +590,14 @@ class _MyRoadmapsScreenState extends State<MyRoadmapsScreen> {
 
   Widget _buildPaginationBar() {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    // ✅ الحل: نضيف ارتفاع الـ bottom navigation bar (56px افتراضي في Flutter)
-    // عشان الأرقام تطلع فوقه مش تتغطى بيه
-    const bottomNavHeight = kBottomNavigationBarHeight; // = 56.0
+    const bottomNavHeight = kBottomNavigationBarHeight;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
         16,
         12,
         16,
-        19 + bottomPadding + bottomNavHeight, // ✅ هنا التعديل
+        19 + bottomPadding + bottomNavHeight,
       ),
       decoration: BoxDecoration(
         color: Colors.white,

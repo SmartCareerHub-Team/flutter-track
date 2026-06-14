@@ -12,7 +12,6 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  // ✅ نفس الـ pattern زي MyRoadmapsScreen
   final calendarRepo = CalendarRepository();
 
   CalendarFormat _calendarFormat = CalendarFormat.month;
@@ -22,17 +21,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Map<DateTime, List<Map<String, dynamic>>> _events = {};
   bool isLoading = true;
 
-  // في CalendarScreen - initState
   @override
   void initState() {
     super.initState();
-    debugPrint("🗓️ [CALENDAR SCREEN] initState called"); // ✅ أضيف ده
+    debugPrint("🗓️ [CALENDAR SCREEN] initState called");
     _fetchAndBuildEvents();
   }
 
-  // ── Fetch from /api/calendar/events ───────────────────────
   Future<void> _fetchAndBuildEvents() async {
-    debugPrint("🗓️ [CALENDAR] _fetchAndBuildEvents started"); // ✅ أضيف ده
+    debugPrint("🗓️ [CALENDAR] _fetchAndBuildEvents started");
     if (!mounted) return;
     setState(() => isLoading = true);
     try {
@@ -49,21 +46,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
       final Map<DateTime, List<Map<String, dynamic>>> eventsMap = {};
 
       for (final event in events) {
-        // ✅ نجرب كل الـ possible date field names
-        final dateStr = (event['date'] ??
-            event['eventDate'] ??
-            event['scheduledDate'] ??
-            event['startDate'] ??
-            event['Date'])
-            ?.toString();
+        // ✅ جرب كل أسماء الـ date field المحتملة
+        final dateStr = _findDateString(event);
 
         if (dateStr == null || dateStr.isEmpty) {
           debugPrint("⚠️ [CALENDAR] No date field in event: ${event.keys.toList()}");
+          debugPrint("⚠️ [CALENDAR] Full event: $event");
           continue;
         }
 
         try {
-          final date   = DateTime.parse(dateStr).toLocal();
+          final date   = _parseDate(dateStr);
+          if (date == null) {
+            debugPrint("⚠️ [CALENDAR] Could not parse date: $dateStr");
+            continue;
+          }
+
           final dayKey = DateTime(date.year, date.month, date.day);
 
           eventsMap.putIfAbsent(dayKey, () => []);
@@ -71,6 +69,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ...event,
             '_parsedDate': date,
           });
+
+          debugPrint("✅ [CALENDAR] Event added on $dayKey: ${_getTitle(event)}");
         } catch (e) {
           debugPrint("⚠️ [CALENDAR] Error parsing date '$dateStr': $e");
           continue;
@@ -96,6 +96,50 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+  /// ✅ ابحث عن أي date field في الـ event
+  String? _findDateString(Map<String, dynamic> event) {
+    const dateKeys = [
+      'date', 'Date',
+      'scheduledDate', 'ScheduledDate',
+      'eventDate', 'EventDate',
+      'startDate', 'StartDate',
+      'interviewDate', 'InterviewDate',
+      'scheduled_date', 'start_date',
+    ];
+    for (final key in dateKeys) {
+      final val = event[key];
+      if (val != null && val.toString().trim().isNotEmpty) {
+        return val.toString().trim();
+      }
+    }
+    return null;
+  }
+
+  /// ✅ parse تنسيقات مختلفة من التواريخ
+  DateTime? _parseDate(String dateStr) {
+    try {
+      return DateTime.parse(dateStr).toLocal();
+    } catch (_) {}
+
+    // جرب تنسيقات تانية لو DateTime.parse فشل
+    final formats = [
+      'yyyy-MM-ddTHH:mm:ss',
+      'yyyy-MM-dd HH:mm:ss',
+      'yyyy-MM-dd',
+      'MM/dd/yyyy HH:mm:ss',
+      'MM/dd/yyyy',
+      'dd/MM/yyyy',
+    ];
+
+    for (final fmt in formats) {
+      try {
+        return DateFormat(fmt).parse(dateStr).toLocal();
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
   List<Map<String, dynamic>> _getEventsForDay(DateTime day) {
     final normalizedDay = DateTime(day.year, day.month, day.day);
     return _events[normalizedDay] ?? [];
@@ -103,28 +147,33 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   List<Map<String, dynamic>> get _upcomingEvents {
     final now = DateTime.now();
-    final all = _events.entries
-        .expand((entry) => entry.value)
-        .where((e) {
+    final future = <Map<String, dynamic>>[];
+    final past   = <Map<String, dynamic>>[];
+
+    for (final e in _events.entries.expand((entry) => entry.value)) {
       final d = e['_parsedDate'] as DateTime?;
-      return d != null && d.isAfter(now);
-    })
-        .toList();
-    all.sort((a, b) {
-      final da = a['_parsedDate'] as DateTime;
-      final db = b['_parsedDate'] as DateTime;
-      return da.compareTo(db);
-    });
-    return all.take(5).toList();
+      if (d == null) continue;
+      if (d.isAfter(now)) {
+        future.add(e);
+      } else {
+        past.add(e);
+      }
+    }
+
+    future.sort((a, b) => (a['_parsedDate'] as DateTime).compareTo(b['_parsedDate'] as DateTime));
+    past.sort((a, b) => (b['_parsedDate'] as DateTime).compareTo(a['_parsedDate'] as DateTime));
+
+    return [...future, ...past].take(10).toList();
   }
 
-  // ✅ helper methods يجيبوا الـ fields من أي اسم ممكن
   String _getTitle(Map<String, dynamic> event) {
-    return (event['title'] ?? event['Title'] ?? event['name'] ?? event['eventName'] ?? 'Event').toString();
+    return (event['title'] ?? event['Title'] ?? event['name'] ?? event['eventName'] ??
+        event['studentName'] ?? event['StudentName'] ?? 'Event').toString();
   }
 
   String _getType(Map<String, dynamic> event) {
-    return (event['type'] ?? event['Type'] ?? event['eventType'] ?? 'Event').toString();
+    return (event['type'] ?? event['Type'] ?? event['eventType'] ??
+        event['interviewType'] ?? event['InterviewType'] ?? 'Event').toString();
   }
 
   String _getLocation(Map<String, dynamic> event) {
@@ -135,12 +184,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return (event['description'] ?? event['Description'] ?? event['notes'] ?? '').toString();
   }
 
-  Color _getEventColor(String type) {
+  Color _getEventColor(String type, {String? apiColor}) {
+    // ✅ لو الـ API بعت color خاص، استخدمه
+    if (apiColor != null) {
+      switch (apiColor.toLowerCase()) {
+        case 'red':    return Colors.red;
+        case 'purple': return Colors.purple;
+        case 'green':  return Colors.green;
+        case 'orange': return Colors.orange;
+        case 'blue':   return const Color(0xff1676C4);
+        case 'yellow': return Colors.amber[700]!;
+      }
+    }
     switch (type.toLowerCase()) {
-      case 'interview':  return const Color(0xff1676C4);
+      case 'interview':  return Colors.purple;
+      case 'job':        return Colors.red;
       case 'workshop':   return Colors.green;
       case 'event':      return Colors.orange;
-      case 'meeting':    return Colors.purple;
+      case 'meeting':    return Colors.teal;
       case 'deadline':   return Colors.red;
       case 'online':     return Colors.green;
       case 'on-site':    return Colors.orange;
@@ -152,6 +213,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   IconData _getEventIcon(String type) {
     switch (type.toLowerCase()) {
       case 'interview':  return Icons.people_outlined;
+      case 'job':        return Icons.work_outline;
       case 'workshop':   return Icons.school_outlined;
       case 'event':      return Icons.event_outlined;
       case 'meeting':    return Icons.groups_outlined;
@@ -179,10 +241,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _getEventColor(type).withOpacity(0.1),
+                color: _getEventColor(type, apiColor: event['color']?.toString()).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(_getEventIcon(type), color: _getEventColor(type)),
+              child: Icon(_getEventIcon(type), color: _getEventColor(type, apiColor: event['color']?.toString())),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -195,7 +257,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   Text(type,
                       style: TextStyle(
                           fontSize: 12,
-                          color: _getEventColor(type),
+                          color: _getEventColor(type, apiColor: event['color']?.toString()),
                           fontWeight: FontWeight.w600)),
                 ],
               ),
@@ -228,14 +290,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 const SizedBox(height: 12),
                 _buildDetailRow(Icons.notes_outlined, 'Description', description),
               ],
-              // ✅ عرض أي fields تانية من الـ API
               ...event.entries
                   .where((e) =>
               !['_parsedDate', '_type', 'date', 'eventDate',
-                'scheduledDate', 'startDate', 'title', 'type',
-                'location', 'description', 'name', 'eventName',
-                'eventType', 'Title', 'Type', 'Location',
-                'Description', 'Date'].contains(e.key) &&
+                'scheduledDate', 'ScheduledDate', 'startDate',
+                'title', 'type', 'location', 'description',
+                'name', 'eventName', 'eventType', 'Title', 'Type',
+                'Location', 'Description', 'Date',
+                'studentName', 'StudentName', 'interviewType',
+                'InterviewType',
+                // ✅ fields مخفية — مش مفيدة للمستخدم
+                'id', 'color', 'status', 'result', 'isAIPick',
+                'companyName', 'createdAt', 'roadmapId',
+                'roadmapName', 'additionalNotes', 'interviewerName',
+                'studentUserId', 'userId',
+              ].contains(e.key) &&
                   e.value != null &&
                   e.value.toString().isNotEmpty)
                   .map((e) {
@@ -432,13 +501,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
           markerBuilder: (context, date, events) {
             if (events.isEmpty) return null;
             final type = _getType(events.first);
+            final color = events.first['color']?.toString();
             return Positioned(
               bottom: 1,
               child: Container(
                 width: 6,
                 height: 6,
                 decoration: BoxDecoration(
-                  color: _getEventColor(type),
+                  color: _getEventColor(type, apiColor: color),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -508,7 +578,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               const Icon(Icons.schedule, color: Color(0xff1676C4), size: 24),
               const SizedBox(width: 8),
               Text(
-                'Upcoming Events',
+                'Schedule',
                 style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -526,7 +596,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     Icon(Icons.event_busy, size: 48, color: Colors.grey[400]),
                     const SizedBox(height: 8),
                     Text(
-                      'No upcoming events',
+                      'No events this month',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ],
@@ -546,10 +616,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: _getEventColor(type).withOpacity(0.05),
+                    color: _getEventColor(type, apiColor: event['color']?.toString()).withOpacity(0.05),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _getEventColor(type).withOpacity(0.3),
+                      color: _getEventColor(type, apiColor: event['color']?.toString()).withOpacity(0.3),
                     ),
                   ),
                   child: Row(
@@ -557,12 +627,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: _getEventColor(type).withOpacity(0.1),
+                          color: _getEventColor(type, apiColor: event['color']?.toString()).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
                           _getEventIcon(type),
-                          color: _getEventColor(type),
+                          color: _getEventColor(type, apiColor: event['color']?.toString()),
                           size: 20,
                         ),
                       ),
@@ -610,14 +680,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: _getEventColor(type).withOpacity(0.1),
+                                color: _getEventColor(type, apiColor: event['color']?.toString()).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 type,
                                 style: TextStyle(
                                     fontSize: 11,
-                                    color: _getEventColor(type),
+                                    color: _getEventColor(type, apiColor: event['color']?.toString()),
                                     fontWeight: FontWeight.w500),
                               ),
                             ),

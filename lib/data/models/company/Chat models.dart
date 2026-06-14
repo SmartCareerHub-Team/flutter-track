@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class ChatRoom {
   final int id;
   final String participantName;
@@ -19,43 +21,22 @@ class ChatRoom {
 
   factory ChatRoom.fromJson(Map<String, dynamic> json, String myId) {
     final applicantId = json['applicantId']?.toString() ?? '';
+    final entityId    = json['entityId']?.toString()    ?? '';
     final isApplicant = applicantId == myId;
 
-    // ✅ DEBUG: اطبع الـ JSON عشان نشوف أسماء الـ fields الصح
-    // يمكنك تشيل السطر ده بعد ما تتأكد إن الصورة شغالة
-    // debugPrint('🖼️ [ROOM JSON] $json');
+    // السيرفر مش بيبعت صورة في الـ rooms response
+    // هنستخدم الـ initials فقط في الوقت الحالي
+    const String logo = '';
 
-    // ✅ FIX: الصورة بتاعة الطرف الثاني — نفس منطق participantName
-    String logo = '';
-    if (isApplicant) {
-      // أنا الـ applicant → الطرف الثاني هو الـ entity (company/university)
-      logo = json['entityLogo']?.toString() ??
-          json['entityImage']?.toString() ??
-          json['entityProfileImage']?.toString() ??
-          json['companyLogo']?.toString() ??
-          json['universityLogo']?.toString() ??
-          json['logoUrl']?.toString() ??
-          json['participantLogo']?.toString() ??
-          json['otherPartyLogo']?.toString() ??
-          '';
-    } else {
-      // أنا الـ entity → الطرف الثاني هو الـ applicant (user/student)
-      logo = json['applicantImage']?.toString() ??
-          json['applicantLogo']?.toString() ??
-          json['applicantProfileImage']?.toString() ??
-          json['profileImage']?.toString() ??
-          json['profilePicture']?.toString() ??
-          json['userImage']?.toString() ??
-          json['studentImage']?.toString() ??
-          json['participantLogo']?.toString() ??
-          json['otherPartyLogo']?.toString() ??
-          '';
+    // ✅ FIX: normalize UTC timestamp
+    String normalizeTime(String? raw) {
+      if (raw == null || raw.isEmpty) return '';
+      return raw.endsWith('Z') ? raw : '${raw}Z';
     }
 
     return ChatRoom(
       id: json['id'] ?? json['roomId'] ?? 0,
 
-      // ✅ لو أنا الـ applicant → الطرف الثاني هو الـ entity والعكس
       participantName: isApplicant
           ? (json['entityName']?.toString() ?? 'Unknown')
           : (json['applicantName']?.toString() ?? 'Unknown'),
@@ -66,17 +47,16 @@ class ChatRoom {
           json['lastMessageContent']?.toString() ??
           '',
 
-      lastMessageTime: json['lastMessageAt']?.toString() ??
-          json['lastMessageTime']?.toString() ??
-          json['updatedAt']?.toString() ??
-          '',
+      // ✅ FIX: normalize الوقت
+      lastMessageTime: normalizeTime(
+        json['lastMessageAt']?.toString() ??
+            json['lastMessageTime']?.toString() ??
+            json['updatedAt']?.toString(),
+      ),
 
       unreadCount: json['unreadCount'] ?? json['unreadMessages'] ?? 0,
 
-      // ✅ الـ participantId هو الطرف الثاني
-      participantId: isApplicant
-          ? (json['entityId']?.toString() ?? '')
-          : applicantId,
+      participantId: isApplicant ? entityId : applicantId,
     );
   }
 }
@@ -105,16 +85,27 @@ class ChatMessage {
   factory ChatMessage.fromJson(Map<String, dynamic> json, String myId) {
     final senderId =
         json['senderId']?.toString() ?? json['userId']?.toString() ?? '';
+
+    // ✅ FIX: normalize UTC timestamp
+    String normalizeTime(String? raw) {
+      if (raw == null || raw.isEmpty) return '';
+      return raw.endsWith('Z') ? raw : '${raw}Z';
+    }
+
     return ChatMessage(
-      id:         json['id']      ?? 0,
-      roomId:     json['roomId']  ?? 0,
+      id:         json['id']     ?? 0,
+      roomId:     json['roomId'] ?? 0,
       content:    json['content'] ?? json['message'] ?? '',
       senderId:   senderId,
       senderName: json['senderName'] ?? json['userName'] ?? '',
-      sentAt:     json['sentAt']     ??
-          json['createdAt']          ??
-          json['timestamp']          ??
-          '',
+
+      // ✅ FIX: normalize الوقت
+      sentAt: normalizeTime(
+        json['sentAt']?.toString() ??
+            json['createdAt']?.toString() ??
+            json['timestamp']?.toString(),
+      ),
+
       isRead: json['isRead'] ?? false,
       isMine: senderId == myId,
     );

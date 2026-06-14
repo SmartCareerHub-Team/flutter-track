@@ -78,9 +78,10 @@ class JobRepository {
     required String description,
     required String requiredSkills,
     required String experienceLevel,
-    required String jobType,      // ✅ "Remote" | "On-site" | "Hybrid"
-    required String location,     // ✅ اسم المدينة فقط أو فاضي لو Remote
+    required String jobType,
+    required String location,
     required String salaryRange,
+    required String deadline,   // ✅ مضاف
     File? companyLogo,
   }) async {
     try {
@@ -92,9 +93,10 @@ class JobRepository {
         MapEntry("Description", description),
         MapEntry("RequiredSkills", requiredSkills),
         MapEntry("ExperienceLevel", experienceLevel),
-        MapEntry("JobType", jobType),      // ✅ "Remote" | "On-site" | "Hybrid"
-        MapEntry("Location", location),    // ✅ اسم المدينة
+        MapEntry("JobType", jobType),
+        MapEntry("Location", location),
         MapEntry("SalaryRange", salaryRange),
+        MapEntry("Deadline", deadline),   // ✅ مضاف
       ]);
 
       if (companyLogo != null && companyLogo.existsSync()) {
@@ -110,7 +112,7 @@ class JobRepository {
       }
 
       debugPrint("📤 [SENDING CREATE JOB] to: $_baseUrl");
-      debugPrint("📤 [JobType]: $jobType | [Location]: $location");
+      debugPrint("📤 [JobType]: $jobType | [Location]: $location | [Deadline]: $deadline");
 
       final response = await _dio.post(
         _baseUrl,
@@ -138,9 +140,10 @@ class JobRepository {
     required String description,
     required String requiredSkills,
     required String experienceLevel,
-    required String jobType,      // ✅ "Remote" | "On-site" | "Hybrid"
-    required String location,     // ✅ اسم المدينة فقط
+    required String jobType,
+    required String location,
     required String salaryRange,
+    required String deadline,   // ✅ مضاف
     File? companyLogo,
   }) async {
     try {
@@ -151,9 +154,10 @@ class JobRepository {
         MapEntry("Description", description),
         MapEntry("RequiredSkills", requiredSkills),
         MapEntry("ExperienceLevel", experienceLevel),
-        MapEntry("JobType", jobType),      // ✅ "Remote" | "On-site" | "Hybrid"
-        MapEntry("Location", location),    // ✅ اسم المدينة
+        MapEntry("JobType", jobType),
+        MapEntry("Location", location),
         MapEntry("SalaryRange", salaryRange),
+        MapEntry("Deadline", deadline),   // ✅ مضاف
       ]);
 
       if (companyLogo != null && companyLogo.existsSync()) {
@@ -168,7 +172,7 @@ class JobRepository {
       }
 
       debugPrint("📤 [SENDING UPDATE JOB] to: $_baseUrl/$jobId");
-      debugPrint("📤 [JobType]: $jobType | [Location]: $location");
+      debugPrint("📤 [JobType]: $jobType | [Location]: $location | [Deadline]: $deadline");
 
       return await _dio.put(
         "$_baseUrl/$jobId",
@@ -182,11 +186,63 @@ class JobRepository {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GET ALL
+  // GET MY JOBS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getMyJobs() async {
+    try {
+      final allJobsRes = await _dio.get(
+        _baseUrl,
+        options: Options(validateStatus: (s) => s! < 500),
+      );
+
+      final availableRes = await _dio.get(
+        "$_baseUrl/available",
+        options: Options(validateStatus: (s) => s! < 500),
+      );
+
+      if (allJobsRes.statusCode != 200) return [];
+
+      List<Map<String, dynamic>> allJobs = [];
+      if (allJobsRes.data is List) {
+        allJobs = List<Map<String, dynamic>>.from(allJobsRes.data);
+      } else if (allJobsRes.data is Map && allJobsRes.data['data'] != null) {
+        allJobs = List<Map<String, dynamic>>.from(allJobsRes.data['data']);
+      }
+
+      Set<dynamic> publishedIds = {};
+      if (availableRes.statusCode == 200) {
+        List<dynamic> availableJobs = [];
+        if (availableRes.data is List) {
+          availableJobs = availableRes.data;
+        } else if (availableRes.data is Map && availableRes.data['data'] != null) {
+          availableJobs = availableRes.data['data'];
+        }
+        publishedIds = availableJobs.map((j) => j['id']).toSet();
+        debugPrint("✅ [AVAILABLE IDS]: $publishedIds");
+      }
+
+      return allJobs.map((job) {
+        final rawUrl = job['companyLogo'] ?? job['logoUrl'] ?? job['logo'];
+        final isPublished = publishedIds.contains(job['id']);
+        return {
+          ...job,
+          'companyLogo': _fixImageUrl(rawUrl),
+          'status': isPublished ? 'Published' : 'Draft',
+        };
+      }).toList();
+
+    } catch (e) {
+      debugPrint("❌ getMyJobs Error: $e");
+      return [];
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // GET ALL JOBS
   // ─────────────────────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> getAllJobs() async {
-
     try {
       debugPrint("📤 [GET ALL JOBS] Fetching from: $_baseUrl");
 
@@ -209,6 +265,8 @@ class JobRepository {
 
         for (var j in result) {
           debugPrint("🔍 [RAW] companyLogo: '${j['companyLogo']}' | logoUrl: '${j['logoUrl']}'");
+          debugPrint("🔍 [FULL JOB FIELDS]: ${j.keys.toList()}");
+          debugPrint("🔍 [STATUS FIELDS]: status=${j['status']}, isPublished=${j['isPublished']}, isActive=${j['isActive']}, statusId=${j['statusId']}");
         }
 
         return result.map((job) {

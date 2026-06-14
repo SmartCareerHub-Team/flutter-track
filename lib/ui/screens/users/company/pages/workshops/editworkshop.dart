@@ -1098,25 +1098,6 @@ class _CreateEditWorkshopScreenState extends State<CreateEditWorkshopScreen> {
             else
               Row(children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading
-                        ? null
-                        : () => _saveWorkshop(isPublished: false),
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text("Save Draft"),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xff1893ff),
-                      side: const BorderSide(
-                          color: Color(0xff1893ff), width: 2),
-                      padding:
-                      const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
                   child: ElevatedButton.icon(
                     onPressed: _isLoading
                         ? null

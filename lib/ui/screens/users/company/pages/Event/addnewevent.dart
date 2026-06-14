@@ -501,20 +501,6 @@ class _CreateEditEventScreenState extends State<CreateEditEventScreen> {
             else
               Row(children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : () => _saveEvent(isPublished: false),
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text("Save Draft"),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xff1676C4),
-                      side: const BorderSide(color: Color(0xff1676C4), width: 2),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
                   child: ElevatedButton.icon(
                     onPressed: _isLoading ? null : () => _saveEvent(isPublished: true),
                     icon: const Icon(Icons.publish),

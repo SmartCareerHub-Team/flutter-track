@@ -1,35 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 class InternshipDetailsFromMap extends StatelessWidget {
   final Map<String, dynamic> internship;
 
   const InternshipDetailsFromMap({required this.internship, super.key});
 
-  String _formatDate(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return 'N/A';
-    try {
-      return DateFormat('dd/MM/yyyy').format(DateTime.parse(dateStr));
-    } catch (_) {
-      return dateStr;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final d = internship;
-    final skills  = List<String>.from(d['requiredSkills'] ?? []);
-    final reqs    = List<String>.from(d['requirements']   ?? []);
-    final status  = d['status']  ?? 'Draft';
-    final isPaid  = d['isPaid']  ?? false;
-    final type    = d['type']    ?? '';
+    final skills = List<String>.from(d['requiredSkills'] ?? []);
+    final reqs = List<String>.from(d['requirements'] ?? []);
+    final status = d['status'] ?? 'Published';
+    final isPaid = d['isPaid'] ?? false;
+    final type = d['type'] ?? '';
     final duration = d['duration'] ?? '';
 
     final statusColor = status == 'Published'
         ? Colors.green
         : status == 'Closed'
         ? Colors.grey
-        : Colors.orange;
+        : Colors.green; // Draft → يتعرض كـ Published
+
+    final statusLabel = status == 'Closed' ? 'Closed' : 'Published';
 
     return Scaffold(
       appBar: AppBar(
@@ -57,7 +49,8 @@ class InternshipDetailsFromMap extends StatelessWidget {
                   children: [
                     Row(children: [
                       Container(
-                        width: 56, height: 56,
+                        width: 56,
+                        height: 56,
                         decoration: BoxDecoration(
                           color: const Color(0xff1676C4).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
@@ -83,7 +76,6 @@ class InternshipDetailsFromMap extends StatelessWidget {
                       ),
                     ]),
                     const SizedBox(height: 12),
-                    // Status badge
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
@@ -91,7 +83,7 @@ class InternshipDetailsFromMap extends StatelessWidget {
                         color: statusColor.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(status,
+                      child: Text(statusLabel,
                           style: TextStyle(
                               color: statusColor,
                               fontWeight: FontWeight.bold,
@@ -112,8 +104,8 @@ class InternshipDetailsFromMap extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(children: [
-                  _infoRow(Icons.work_outline,       "Type",     type),
-                  _infoRow(Icons.schedule,           "Duration", duration),
+                  _infoRow(Icons.work_outline, "Type", type),
+                  _infoRow(Icons.schedule, "Duration", duration),
                   _infoRow(
                     isPaid ? Icons.attach_money : Icons.money_off,
                     "Compensation",
@@ -122,18 +114,6 @@ class InternshipDetailsFromMap extends StatelessWidget {
                   if ((d['location'] ?? '').toString().isNotEmpty)
                     _infoRow(Icons.location_on_outlined, "Location",
                         d['location'].toString()),
-                  _infoRow(
-                    Icons.people_outline,
-                    "Max Trainees",
-                    (d['maxTrainees'] ?? d['maxtrainees'] ?? 'N/A').toString(),
-                  ),
-                  _infoRow(
-                    Icons.flag_outlined,
-                    "Deadline",
-                    _formatDate(
-                        (d['applicationDeadline'] ?? d['deadline'] ?? '')
-                            .toString()),
-                  ),
                 ]),
               ),
             ),
@@ -146,9 +126,7 @@ class InternshipDetailsFromMap extends StatelessWidget {
                 title: "Description",
                 child: Text(d['description'].toString(),
                     style: TextStyle(
-                        color: Colors.grey[800],
-                        fontSize: 14,
-                        height: 1.5)),
+                        color: Colors.grey[800], fontSize: 14, height: 1.5)),
               ),
 
             if (skills.isNotEmpty) ...[
@@ -156,12 +134,13 @@ class InternshipDetailsFromMap extends StatelessWidget {
               _sectionCard(
                 title: "Required Skills",
                 child: Wrap(
-                  spacing: 8, runSpacing: 8,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: skills
                       .map((s) => Chip(
                     label: Text(s),
-                    backgroundColor: const Color(0xff1676C4)
-                        .withOpacity(0.1),
+                    backgroundColor:
+                    const Color(0xff1676C4).withOpacity(0.1),
                     labelStyle: const TextStyle(
                         color: Color(0xff1676C4),
                         fontWeight: FontWeight.w600),
@@ -226,8 +205,7 @@ class InternshipDetailsFromMap extends StatelessWidget {
   Widget _sectionCard({required String title, required Widget child}) {
     return Card(
       elevation: 2,
-      shape:
-      RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

@@ -26,6 +26,8 @@ class Create_editRoadmap extends StatefulWidget {
 }
 
 class _Create_editRoadmapState extends State<Create_editRoadmap> {
+  static const Color _blue = Color(0xff1676C4);
+
   final roadmapRepo = RoadmapRepository();
 
   final TextEditingController _titleController     = TextEditingController();
@@ -47,37 +49,66 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
 
   bool get isEdit => widget.roadmapData != null;
 
-  // ✅ FIX 1: robust AI quiz detection — checks multiple signals
+  // ── Friendly error messages map ──────────────────────────────
+  static const Map<String, String> _fieldErrorMessages = {
+    'SkillRequests':            'Please add at least one skill.',
+    'ProjectRequests':          'Please add at least one project.',
+    'LearningMaterialRequests': 'Please add at least one learning material.',
+    'Title':                    'Roadmap title is required.',
+    'Description':              'Description is required.',
+    'TargetRole':               'Please select a target role.',
+    'StartDate':                'Start date is required.',
+    'EndDate':                  'End date is required.',
+    'CoverImage':               'Cover image is required.',
+    'Price':                    'Please enter a valid price.',
+  };
+
+  /// Converts the API errors map to a human-readable string.
+  String _parseApiErrors(dynamic responseData) {
+    try {
+      if (responseData is Map) {
+        final errors = responseData['errors'];
+        if (errors is Map && errors.isNotEmpty) {
+          final messages = <String>[];
+          errors.forEach((key, value) {
+            final friendly = _fieldErrorMessages[key];
+            if (friendly != null) {
+              messages.add('• $friendly');
+            } else {
+              final raw = value is List ? value.first.toString() : value.toString();
+              messages.add('• $raw');
+            }
+          });
+          return messages.join('\n');
+        }
+        final msg = responseData['message'] ?? responseData['title'];
+        if (msg != null && msg.toString().isNotEmpty) {
+          return msg.toString();
+        }
+      }
+    } catch (_) {}
+    return 'Something went wrong. Please try again.';
+  }
+
+  // ✅ FIX 1: robust AI quiz detection
   bool _isAiQuiz(Map<String, dynamic> quiz) {
     final title = (quiz['title'] ?? '').toString().toLowerCase();
-    // Signal A: title prefix (original logic)
     if (title.startsWith('ai generated') || title.contains('ai generated')) return true;
-    // Signal B: explicit flag from API
     if (quiz['isAiGenerated'] == true) return true;
     if (quiz['isAi'] == true) return true;
-    // Signal C: source field
     final source = (quiz['source'] ?? '').toString().toLowerCase();
     if (source == 'ai' || source == 'generated') return true;
     return false;
   }
 
-  // ✅ FIX 2: compute total points from a quiz map (API response)
+  // ✅ FIX 2: compute total points from a quiz map
   int _extractQuizPoints(Map<String, dynamic> quiz) {
-    // Priority 1: explicit points field on the quiz
-    if (quiz['points'] != null) {
-      return (quiz['points'] as num).toInt();
-    }
-    // Priority 2: totalPoints field
-    if (quiz['totalPoints'] != null) {
-      return (quiz['totalPoints'] as num).toInt();
-    }
-    // Priority 3: sum from questions
+    if (quiz['points'] != null) return (quiz['points'] as num).toInt();
+    if (quiz['totalPoints'] != null) return (quiz['totalPoints'] as num).toInt();
     final questions = quiz['questions'] ?? quiz['questionRequests'] ?? [];
     if (questions is List && questions.isNotEmpty) {
       int sum = 0;
-      for (var q in questions) {
-        sum += (q['points'] as num? ?? 0).toInt();
-      }
+      for (var q in questions) sum += (q['points'] as num? ?? 0).toInt();
       if (sum > 0) return sum;
     }
     return 0;
@@ -125,17 +156,15 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
         widget.roadmapData!['skillRequests'] ??
         widget.roadmapData!['requiredSkills'];
     if (skillsData == null) return;
-
     for (var skill in skillsData) {
       final points = skill['points'] ??
           skill['levelPoints'] ??
           _defaultPointsForLevel(skill['level'] ?? 'Beginner');
-
       s.skills.add({
         "id": skill['id'],
         "nameController": TextEditingController(
             text: skill['name'] ?? skill['skillName'] ?? ''),
-        "level": skill['level'] ?? 'Beginner',
+        "level":  skill['level'] ?? 'Beginner',
         "points": points,
         "pointsController": TextEditingController(text: points.toString()),
       });
@@ -156,9 +185,8 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
     final s = skillsKey.currentState;
     if (s == null) return [];
     return s.skills.map<Map<String, dynamic>>((skill) {
-      final pointsText =
-      (skill['pointsController'] as TextEditingController).text.trim();
-      final points = int.tryParse(pointsText) ?? 0;
+      final points = int.tryParse(
+          (skill['pointsController'] as TextEditingController).text.trim()) ?? 0;
       return {
         if (skill['id'] != null) "id": skill['id'],
         "name":   (skill['nameController'] as TextEditingController).text.trim(),
@@ -182,8 +210,8 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
         "points":           material['points'] ?? 0,
         "pointsController": TextEditingController(
             text: (material['points'] ?? 0).toString()),
-        "duration":  material['duration'] ?? 'Medium',
-        "filePath":  material['filePath'],
+        "duration": material['duration'] ?? 'Medium',
+        "filePath": material['filePath'],
       });
     }
     m.setState(() {});
@@ -218,21 +246,17 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
         widget.roadmapData!['quizRequests'];
     debugPrint("🔎 [QUIZ RAW DATA]: $quizzesData");
     if (quizzesData == null) return;
-
     for (var quiz in quizzesData) {
-      // ✅ FIX 3: use robust helpers instead of inline logic
       final bool   isAi        = _isAiQuiz(quiz as Map<String, dynamic>);
       final int    savedPoints = _extractQuizPoints(quiz);
       final String title       = quiz['title']?.toString() ?? '';
-
       debugPrint("📝 [INIT QUIZ] '$title' | isAi: $isAi | points: $savedPoints");
-
       q.quizzes.add({
         "id":               quiz['id'],
         "titleController":  TextEditingController(text: title),
         "questions":        quiz['questions'] ?? quiz['questionRequests'] ?? [],
         "isAi":             isAi,
-        "savedPoints":      savedPoints,   // ✅ always populated now
+        "savedPoints":      savedPoints,
         "pointsController": TextEditingController(text: savedPoints.toString()),
       });
     }
@@ -282,30 +306,20 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
       final questions = quiz['questions'] as List? ?? [];
       final isAi      = quiz['isAi'] == true;
 
-      // ✅ FIX 4: read savedPoints from pointsController (user may have edited it)
-      //    then fall back to the stored savedPoints int, then fall back to questions sum.
       int totalPoints;
-
       final controllerText =
           (quiz['pointsController'] as TextEditingController?)?.text.trim() ?? '';
       final controllerValue = int.tryParse(controllerText) ?? 0;
 
       if (isAi) {
-        // For AI quizzes: prefer the controller value (editable), then savedPoints.
         final savedPoints = (quiz['savedPoints'] as num? ?? 0).toInt();
         totalPoints = controllerValue > 0
             ? controllerValue
-            : (savedPoints > 0 ? savedPoints : 50); // fallback 50 as before
+            : (savedPoints > 0 ? savedPoints : 50);
       } else {
-        // For manual quizzes: always sum from questions (source of truth).
         totalPoints = questions.fold<int>(
-          0,
-              (sum, q) => sum + ((q['points'] as num? ?? 0).toInt()),
-        );
-        // If questions have no points set, use controller value.
-        if (totalPoints == 0 && controllerValue > 0) {
-          totalPoints = controllerValue;
-        }
+            0, (sum, q) => sum + ((q['points'] as num? ?? 0).toInt()));
+        if (totalPoints == 0 && controllerValue > 0) totalPoints = controllerValue;
       }
 
       debugPrint(
@@ -325,7 +339,6 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
 
   bool _validateForm() {
     _errors.clear();
-
     if (_titleController.text.trim().isEmpty)
       _errors['title'] = "Title is required";
     if (_descController.text.trim().isEmpty)
@@ -345,7 +358,6 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
 
     if (_endDateController.text.isEmpty)
       _errors['end'] = "End date required";
-
     if (!_isFree && _priceController.text.trim().isEmpty)
       _errors['price'] = "Price is required for paid roadmaps";
 
@@ -373,7 +385,6 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
       Response? response;
 
       if (isEdit) {
-        // ── UPDATE ──────────────────────────────────────────────
         response = await roadmapRepo.updateRoadmap(
           roadmapId:         widget.roadmapData!['id'].toString(),
           title:             _titleController.text.trim(),
@@ -398,15 +409,14 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text("تم التحديث بنجاح!"),
+                content: Text("Roadmap updated successfully!"),
                 backgroundColor: Colors.green),
           );
           Navigator.pop(context, true);
         } else {
-          _showErrorSnackbar(response);
+          _showErrorDialog(response);
         }
       } else {
-        // ── CREATE ──────────────────────────────────────────────
         response = await roadmapRepo.createRoadmap(
           title:             _titleController.text.trim(),
           description:       _descController.text.trim(),
@@ -437,46 +447,57 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
           debugPrint("✅ [CREATE] Roadmap created with ID: $roadmapId");
 
           if (roadmapId != null) {
-            await Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AiQuizScreen(
-                  roadmapId:   roadmapId!,
-                  isPublished: isPublished,
+            if (isPublished) {
+              // Publish → go to AI quiz screen
+              await Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AiQuizScreen(
+                    roadmapId:   roadmapId!,
+                    isPublished: isPublished,
+                  ),
                 ),
-              ),
-            );
-          } else {
-            debugPrint(
-                "⚠️ [CREATE] No roadmapId in response — skipping AI quiz");
+              );
+            } else {
+              // Draft → go back to roadmap list
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Roadmap saved as Draft!"),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              Navigator.pop(context, true);
+            }
+          }else {
+            debugPrint("⚠️ [CREATE] No roadmapId in response — skipping AI quiz");
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                  content: Text("تم الحفظ بنجاح!"),
+                  content: Text("Roadmap saved successfully!"),
                   backgroundColor: Colors.green),
             );
             Navigator.pop(context, true);
           }
         } else {
-          _showErrorSnackbar(response);
+          _showErrorDialog(response);
         }
       }
     } on DioException catch (e) {
       debugPrint("❌ DioException: ${e.response?.statusCode}");
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              "خطأ في الشبكة: ${e.response?.statusCode}\n${e.response?.data ?? e.message}"),
+        const SnackBar(
+          content: Text("Connection failed. Please check your internet and try again."),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
+          duration: Duration(seconds: 5),
         ),
       );
     } catch (e) {
       debugPrint("❌ General Error: $e");
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text("خطأ غير متوقع: $e"),
+        const SnackBar(
+            content: Text("An unexpected error occurred. Please try again."),
             backgroundColor: Colors.red),
       );
     } finally {
@@ -484,13 +505,93 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
     }
   }
 
-  void _showErrorSnackbar(Response? response) {
+  // ── Error dialog with blue theme ─────────────────────────────
+  void _showErrorDialog(Response? response) {
     if (!mounted) return;
+
+    final statusCode      = response?.statusCode;
+    final friendlyMessage = _parseApiErrors(response?.data);
+
+    // 400 validation errors → dialog (multi-line readable)
+    if (statusCode == 400) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.info_outline,
+                    color: _blue, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                "Please review your form",
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: _blue),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                friendlyMessage,
+                style: const TextStyle(
+                    fontSize: 14,
+                    height: 1.8,
+                    color: Color(0xff444444)),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _blue,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Got it",
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Other errors → snackbar
+    final label = statusCode == null
+        ? 'Save failed'
+        : statusCode >= 500
+        ? 'Server error ($statusCode)'
+        : 'Save failed ($statusCode)';
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-            "فشل الحفظ: ${response?.statusCode ?? 'لا يوجد response'}\n${response?.data ?? ''}"),
-        backgroundColor: Colors.orange,
+        content: Text("$label — $friendlyMessage"),
+        backgroundColor: Colors.red,
         duration: const Duration(seconds: 5),
       ),
     );
@@ -502,10 +603,26 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
       initialDate: DateTime.now(),
       firstDate:   DateTime.now(),
       lastDate:    DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xff1676C4),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Color(0xff1676C4),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
-      setState(
-              () => controller.text = DateFormat('yyyy-MM-dd').format(picked));
+      setState(() => controller.text = DateFormat('yyyy-MM-dd').format(picked));
     }
   }
 
@@ -525,11 +642,11 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
       appBar: AppBar(
         title: Text(isEdit ? "Edit Roadmap" : "Create Roadmap",
             style: const TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xff1676C4),
+        backgroundColor: _blue,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: _blue))
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -548,8 +665,7 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: _errors.values
                       .map((e) => Text("• $e",
-                      style:
-                      const TextStyle(color: Colors.red)))
+                      style: const TextStyle(color: Colors.red)))
                       .toList(),
                 ),
               ),
@@ -609,9 +725,8 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
                 Row(children: [
                   Checkbox(
                     value: _isFree,
-                    onChanged: (v) =>
-                        setState(() => _isFree = v!),
-                    activeColor: const Color(0xff1676C4),
+                    onChanged: (v) => setState(() => _isFree = v!),
+                    activeColor: _blue,
                   ),
                   const Text("Free Roadmap"),
                 ]),
@@ -657,20 +772,19 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xff1676C4).withOpacity(0.07),
+                  color: _blue.withOpacity(0.07),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: const Color(0xff1676C4).withOpacity(0.2)),
+                  border:
+                  Border.all(color: _blue.withOpacity(0.2)),
                 ),
                 child: const Row(children: [
-                  Icon(Icons.auto_awesome,
-                      color: Color(0xff1676C4), size: 20),
+                  Icon(Icons.auto_awesome, color: _blue, size: 20),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       "After saving, you'll be able to generate an AI quiz for this roadmap.",
                       style: TextStyle(
-                          fontSize: 12, color: Color(0xff1676C4)),
+                          fontSize: 12, color: _blue),
                     ),
                   ),
                 ]),
@@ -682,6 +796,10 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
                 child: OutlinedButton(
                   onPressed:
                   _isLoading ? null : () => _saveRoadmap(false),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: _blue),
+                    foregroundColor: _blue,
+                  ),
                   child: const Text("Draft"),
                 ),
               ),
@@ -691,7 +809,7 @@ class _Create_editRoadmapState extends State<Create_editRoadmap> {
                   onPressed:
                   _isLoading ? null : () => _saveRoadmap(true),
                   style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xff1676C4)),
+                      backgroundColor: _blue),
                   child: const Text("Publish",
                       style: TextStyle(color: Colors.white)),
                 ),

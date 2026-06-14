@@ -52,37 +52,58 @@ class _ChatMessagesScreenState extends State<ChatMessagesScreen>
   Timer? _pollTimer;
   int _tempIdCounter = -1;
 
+  // ✅ FIX: flag عشان نمنع تشغيل poll جديد لو في واحد شغال
+  bool _isPolling = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadMessages();
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted) _loadMessages(silent: true);
-    });
+    _startPolling();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _pollTimer?.cancel();
+    _stopPolling();
     _ctrl.dispose();
     _scroll.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
+  void _startPolling() {
+    _stopPolling(); // ✅ FIX: دايماً وقف القديم الأول
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted && !_isPolling) _silentRefresh();
+    });
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      _pollTimer?.cancel();
+      _stopPolling();
     } else if (state == AppLifecycleState.resumed) {
-      _loadMessages(silent: true);
-      _pollTimer?.cancel();
-      _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-        if (mounted) _loadMessages(silent: true);
-      });
+      _silentRefresh();
+      _startPolling(); // ✅ FIX: _startPolling بتوقف القديم أوتوماتيك
+    }
+  }
+
+  // ✅ FIX: silent refresh منفصلة بـ guard
+  Future<void> _silentRefresh() async {
+    if (_isPolling) return;
+    _isPolling = true;
+    try {
+      await _loadMessages(silent: true);
+    } finally {
+      _isPolling = false;
     }
   }
 
@@ -109,15 +130,14 @@ class _ChatMessagesScreenState extends State<ChatMessagesScreen>
 
         if (mounted) {
           setState(() {
-            // ✅ FIX: الـ deduplication بالـ ID مش بالـ content
-            // الـ temp IDs بتاعتنا سالبة دايماً، فمش هتتطابق مع الـ server IDs
             final serverIds = confirmed.map((m) => m.id).toSet();
 
+            // ✅ FIX: بس الـ pending اللي لسه مش موجودة على السيرفر
             final pendingOnly = _messages
                 .where((m) =>
             m.isPending &&
                 !m.hasFailed &&
-                m.message.id < 0 && // temp IDs سالبة
+                m.message.id < 0 &&
                 !serverIds.contains(m.message.id))
                 .toList();
 
@@ -175,6 +195,12 @@ class _ChatMessagesScreenState extends State<ChatMessagesScreen>
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // ✅ FIX: اشيل الـ pending message الأول قبل ما تجيب من السيرفر
+        if (mounted) {
+          setState(() {
+            _messages.removeWhere((m) => m.message.id == tempId);
+          });
+        }
         await _loadMessages(silent: true);
       } else {
         if (mounted) {
@@ -248,7 +274,6 @@ class _ChatMessagesScreenState extends State<ChatMessagesScreen>
     });
   }
 
-  // ✅ FIX: normalize timestamp عشان يتعامل صح مع UTC
   String _formatTime(String raw) {
     if (raw.isEmpty) return '';
     try {
@@ -284,7 +309,6 @@ class _ChatMessagesScreenState extends State<ChatMessagesScreen>
     }
   }
 
-  // ✅ FIX: normalize timestamp هنا برضو
   String _formatDate(String raw) {
     try {
       final normalized = raw.endsWith('Z') ? raw : '${raw}Z';

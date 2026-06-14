@@ -20,7 +20,14 @@ class AnalyticsRepository {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString('company_token');
+
+        // ✅ Support both user types:
+        // Company login saves  → 'company_token'
+        // University login saves → 'university_token'
+        final token = prefs.getString('company_token')
+            ?? prefs.getString('university_token')
+            ?? prefs.getString('token');
+
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
           debugPrint("✅ [ANALYTICS AUTH] Token attached");
@@ -41,6 +48,8 @@ class AnalyticsRepository {
       },
     ));
   }
+
+  // ─── Helpers ─────────────────────────────────────────────────
 
   Map<String, dynamic> _safeMap(dynamic data) {
     if (data is Map<String, dynamic>) return data;
@@ -64,55 +73,64 @@ class AnalyticsRepository {
     }
   }
 
-  // ─── 1. Dashboard Overview ───────────────────────────────────
-  // GET /api/Analytics/dashboard-overview
-  // Response shape:
-  // { roadmap: {...}, jobs: {...}, internships: {...},
-  //   workshops: {...}, events: {...}, interviews: {...}, universities: {...} }
+  // ─── Endpoints shared between Company & University ───────────
+
+  // GET /api/Analytics/dashboard-overview  (Company dashboard only)
   Future<Map<String, dynamic>> getDashboardOverview() => _get('dashboard-overview');
 
-  // ─── 2. Roadmaps ─────────────────────────────────────────────
   // GET /api/Analytics/roadmaps
-  // Response: { totalRoadmaps, activeRoadmaps, totalEnrolled,
-  //             completionRate, avgProgress, distributionByTargetRole }
   Future<Map<String, dynamic>> getRoadmapsAnalytics() => _get('roadmaps');
 
-  // ─── 3. Jobs ─────────────────────────────────────────────────
   // GET /api/Analytics/jobs
-  // Response: { totalJobPostings, totalApplications, interviewRate,
-  //             hiringSuccessRate, byTypeAndLevel }
   Future<Map<String, dynamic>> getJobsAnalytics() => _get('jobs');
 
-  // ─── 4. Internships ──────────────────────────────────────────
   // GET /api/Analytics/internships
   Future<Map<String, dynamic>> getInternshipsAnalytics() => _get('internships');
 
-  // ─── 5. Workshops ────────────────────────────────────────────
   // GET /api/Analytics/workshops
-  // Response: { totalWorkshops, totalParticipants, attendanceRate, byType }
   Future<Map<String, dynamic>> getWorkshopsAnalytics() => _get('workshops');
 
-  // ─── 6. Events ───────────────────────────────────────────────
   // GET /api/Analytics/events
-  // Response: { totalEvents, totalRegistrations, attendanceRate, byMode }
   Future<Map<String, dynamic>> getEventsAnalytics() => _get('events');
 
-  // ─── 7. Interviews ───────────────────────────────────────────
   // GET /api/Analytics/interviews
-  // Response: { totalInterviews, attendanceRate, hiringRate,
-  //             completedCount, scheduledCount, completionRateOverTime }
   Future<Map<String, dynamic>> getInterviewsAnalytics() => _get('interviews');
 
-  // ─── 8. Interviews Over Time ──────────────────────────────────
   // GET /api/Analytics/interviews/overtime
   Future<Map<String, dynamic>> getInterviewsOverTime() => _get('interviews/overtime');
 
-  // ─── 9. Universities ─────────────────────────────────────────
+  // ─── University-only endpoint ─────────────────────────────────
+
   // GET /api/Analytics/universities
   // Response: { totalActivePartners, mostActiveCampus, newPartnerships }
   Future<Map<String, dynamic>> getUniversitiesAnalytics() => _get('universities');
 
-  // ─── Fetch ALL in parallel ───────────────────────────────────
+  // ─── University Dashboard Overview (workshops + events + universities) ───
+  // بديل لـ dashboard-overview اللي مخصص للـ Company role بس
+  Future<Map<String, dynamic>> getUniversityDashboardOverview() async {
+    try {
+      final results = await Future.wait([
+        getWorkshopsAnalytics(),     // 0 → workshops
+        getEventsAnalytics(),        // 1 → events
+        getUniversitiesAnalytics(),  // 2 → universities / partnerships
+      ]);
+
+      debugPrint("📊 [UNI OVERVIEW] workshops: ${results[0]}");
+      debugPrint("📊 [UNI OVERVIEW] events: ${results[1]}");
+      debugPrint("📊 [UNI OVERVIEW] universities: ${results[2]}");
+
+      return {
+        'workshops':    results[0],
+        'events':       results[1],
+        'universities': results[2],
+      };
+    } catch (e) {
+      debugPrint("❌ [UNI OVERVIEW ERROR]: $e");
+      return {};
+    }
+  }
+
+  // ─── Fetch ALL in parallel (Company dashboard) ───────────────
   Future<Map<String, dynamic>> fetchAllAnalytics() async {
     try {
       final results = await Future.wait([

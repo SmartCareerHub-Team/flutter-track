@@ -22,14 +22,27 @@ class EventUniRepository {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString('university_token')
-            ?? prefs.getString('company_token');
-        if (token != null) {
+        final token = prefs.getString('university_token');
+
+        if (token != null && token.isNotEmpty) {
           options.headers['Authorization'] = 'Bearer $token';
           debugPrint("✅ [AUTH] Token attached: ${token.substring(0, 20)}...");
         } else {
-          debugPrint("🛑 [AUTH] Warning: No token found!");
+          debugPrint("🛑 [AUTH] No university token found — rejecting request");
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 401,
+                statusMessage: "Unauthorized: No university token found",
+              ),
+              type: DioExceptionType.badResponse,
+            ),
+          );
+          return;
         }
+
         debugPrint("📤 [REQUEST] ${options.method} ${options.uri}");
         return handler.next(options);
       },
@@ -45,20 +58,39 @@ class EventUniRepository {
     ));
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────────────────────────────────────
+
   Map<String, dynamic> _processBanner(dynamic rawValue) {
     if (rawValue == null) return {'type': null, 'value': null};
     final s = rawValue.toString().trim();
     if (s.isEmpty || s.toLowerCase() == 'null') return {'type': null, 'value': null};
-    if (s.startsWith('http://') || s.startsWith('https://')) return {'type': 'url', 'value': s};
+
+    if (s.startsWith('http://') || s.startsWith('https://')) {
+      debugPrint("🖼️ [BANNER] Full URL: ${s.substring(0, s.length.clamp(0, 80))}");
+      return {'type': 'url', 'value': s};
+    }
+
     if (s.startsWith('/uploads/') || s.startsWith('uploads/')) {
       final fixed = s.startsWith('/') ? "$_serverBase$s" : "$_serverBase/$s";
+      debugPrint("🖼️ [BANNER] Path → Fixed URL: $fixed");
       return {'type': 'url', 'value': fixed};
     }
+
     if (s.startsWith('/9j/') || s.startsWith('iVBOR') || s.startsWith('data:image')) {
       final clean = s.startsWith('data:image') ? s.substring(s.indexOf(',') + 1) : s;
+      debugPrint("🖼️ [BANNER] Base64 image detected (len: ${clean.length})");
       return {'type': 'base64', 'value': clean};
     }
-    if (s.startsWith('/')) return {'type': 'url', 'value': "$_serverBase$s"};
+
+    if (s.startsWith('/')) {
+      final fixed = "$_serverBase$s";
+      debugPrint("🖼️ [BANNER] Generic path → Fixed: $fixed");
+      return {'type': 'url', 'value': fixed};
+    }
+
+    debugPrint("🖼️ [BANNER] Unknown format, ignoring.");
     return {'type': null, 'value': null};
   }
 
@@ -69,16 +101,25 @@ class EventUniRepository {
     return 'image/jpeg';
   }
 
-  String _toSafeDateString(DateTime date) =>
-      DateTime(date.year, date.month, date.day, 12, 0, 0).toIso8601String();
+  String _toSafeDateString(DateTime date) {
+    return DateTime(date.year, date.month, date.day, 12, 0, 0).toIso8601String();
+  }
 
-  // ─── GET ALL ──────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // GET ALL
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<List<Map<String, dynamic>>> getAllEvents() async {
     try {
+      debugPrint("📤 [GET ALL EVENTS] Fetching from: $_baseUrl");
+
       final response = await _dio.get(
         _baseUrl,
         options: Options(validateStatus: (status) => status! < 500),
       );
+
+      debugPrint("📥 [GET ALL EVENTS] Status: ${response.statusCode}");
+
       if (response.statusCode == 200) {
         List<Map<String, dynamic>> result = [];
         if (response.data is List) {
@@ -86,12 +127,25 @@ class EventUniRepository {
         } else if (response.data is Map && response.data['data'] != null) {
           result = List<Map<String, dynamic>>.from(response.data['data']);
         }
+
+        debugPrint("📦 [EVENTS COUNT]: ${result.length}");
+        if (result.isNotEmpty) {
+          debugPrint("🔑 [FIRST EVENT KEYS]: ${result[0].keys.toList()}");
+        }
+
         return result.map((e) {
           final rawValue =
-              e['bannerUrl'] ?? e['banner'] ?? e['bannerPath'] ??
-                  e['coverImage'] ?? e['coverImageUrl'] ?? e['coverImagePath'] ??
-                  e['image'] ?? e['imageUrl'];
+              e['bannerUrl']      ??
+                  e['banner']         ??
+                  e['bannerPath']     ??
+                  e['coverImage']     ??
+                  e['coverImageUrl']  ??
+                  e['coverImagePath'] ??
+                  e['image']          ??
+                  e['imageUrl'];
+
           final info = _processBanner(rawValue);
+
           return {
             ...e,
             'bannerType':  info['type'],
@@ -100,6 +154,7 @@ class EventUniRepository {
           };
         }).toList();
       }
+
       return [];
     } catch (e) {
       debugPrint("❌ getAllEvents Error: $e");
@@ -107,7 +162,10 @@ class EventUniRepository {
     }
   }
 
-  // ─── CREATE ───────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // CREATE
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<Response?> createEvent({
     required String title,
     required String description,
@@ -159,21 +217,35 @@ class EventUniRepository {
         MapEntry("InviteOnlyEligibleStudents",      inviteOnlyEligibleStudents.toString()),
         if (location != null && location.isNotEmpty) MapEntry("Location", location),
       ]);
+
       if (banner != null && banner.existsSync()) {
-        formData.files.add(MapEntry("Banner",
-            await MultipartFile.fromFile(banner.path,
-                filename: banner.path.split('/').last,
-                contentType: DioMediaType.parse(_getMimeType(banner.path)))));
+        formData.files.add(MapEntry(
+          "Banner",
+          await MultipartFile.fromFile(
+            banner.path,
+            filename:    banner.path.split('/').last,
+            contentType: DioMediaType.parse(_getMimeType(banner.path)),
+          ),
+        ));
       }
-      return await _dio.post(_baseUrl,
-          data: formData, options: Options(validateStatus: (s) => s! < 500));
+
+      final response = await _dio.post(
+        _baseUrl,
+        data:    formData,
+        options: Options(validateStatus: (s) => s! < 500),
+      );
+      debugPrint("✅ [CREATE EVENT] Status: ${response.statusCode}");
+      return response;
     } catch (e) {
       debugPrint("❌ createEvent Error: $e");
       rethrow;
     }
   }
 
-  // ─── UPDATE ───────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // UPDATE
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<Response?> updateEvent({
     required String eventId,
     required String title,
@@ -226,25 +298,63 @@ class EventUniRepository {
         MapEntry("InviteOnlyEligibleStudents",      inviteOnlyEligibleStudents.toString()),
         if (location != null && location.isNotEmpty) MapEntry("Location", location),
       ]);
+
       if (banner != null && banner.existsSync()) {
-        formData.files.add(MapEntry("Banner",
-            await MultipartFile.fromFile(banner.path,
-                filename: banner.path.split('/').last,
-                contentType: DioMediaType.parse(_getMimeType(banner.path)))));
+        formData.files.add(MapEntry(
+          "Banner",
+          await MultipartFile.fromFile(
+            banner.path,
+            filename:    banner.path.split('/').last,
+            contentType: DioMediaType.parse(_getMimeType(banner.path)),
+          ),
+        ));
       }
-      return await _dio.put("$_baseUrl/$eventId",
-          data: formData, options: Options(validateStatus: (s) => s! < 500));
+
+      final response = await _dio.put(
+        "$_baseUrl/$eventId",
+        data:    formData,
+        options: Options(validateStatus: (s) => s! < 500),
+      );
+      debugPrint("✅ [UPDATE EVENT] Status: ${response.statusCode}");
+      return response;
     } catch (e) {
       debugPrint("❌ updateEvent Error: $e");
       rethrow;
     }
   }
 
-  // ─── DELETE ───────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // DELETE
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<Response?> deleteEvent(dynamic eventId) async {
     try {
-      return await _dio.delete("$_baseUrl/${eventId.toString()}",
-          options: Options(validateStatus: (s) => s! < 500));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('university_token');
+
+      debugPrint("🗑️ [DELETE EVENT] id: $eventId");
+      debugPrint("🔑 [DELETE EVENT] token: ${token != null ? '${token.substring(0, 20)}...' : 'NULL ❌'}");
+
+      if (token == null || token.isEmpty) {
+        debugPrint("🛑 [DELETE EVENT] Aborted — no university token found");
+        return Response(
+          requestOptions: RequestOptions(path: "$_baseUrl/$eventId"),
+          statusCode: 401,
+          statusMessage: "Unauthorized: No university token found",
+        );
+      }
+
+      final response = await _dio.delete(
+        "$_baseUrl/${eventId.toString()}",
+        options: Options(
+          validateStatus: (s) => s! < 500,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      debugPrint("📥 [DELETE EVENT] Status: ${response.statusCode}");
+      debugPrint("📥 [DELETE EVENT] Data: ${response.data}");
+      return response;
     } catch (e) {
       debugPrint("❌ deleteEvent Error: $e");
       rethrow;

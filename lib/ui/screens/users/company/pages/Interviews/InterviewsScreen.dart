@@ -557,7 +557,7 @@ class _InterviewsScreenState extends State<InterviewsScreen> {
           Expanded(
             child: TextField(
               decoration: InputDecoration(
-                hintText: "Search by name, email...",
+                hintText: "Search",
                 prefixIcon: const Icon(Icons.search, color: Color(0xff1676C4)),
                 filled: true,
                 fillColor: Colors.white,

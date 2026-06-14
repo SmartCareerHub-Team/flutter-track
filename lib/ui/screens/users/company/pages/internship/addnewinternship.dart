@@ -9,7 +9,6 @@ import '../../../../../widgets/common/_buildTextArea.dart';
 import '../../../../../widgets/common/_buildTextField.dart';
 
 class CreateEditInternshipScreen extends StatefulWidget {
-  // بنستقبل Map زي الـ Roadmap بدل InternshipModel
   final Map<String, dynamic>? internship;
 
   const CreateEditInternshipScreen({this.internship, super.key});
@@ -28,8 +27,7 @@ class _CreateEditInternshipScreenState
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _maxTraineesController = TextEditingController();
   final TextEditingController _deadlineController = TextEditingController();
-  final TextEditingController _requirementsController =
-  TextEditingController();
+  final TextEditingController _requirementsController = TextEditingController();
   final TextEditingController _skillController = TextEditingController();
 
   String? _internshipType;
@@ -64,29 +62,26 @@ class _CreateEditInternshipScreenState
   void _initializeData() {
     if (widget.internship != null) {
       final d = widget.internship!;
-      _titleController.text    = d['title']       ?? '';
-      _descController.text     = d['description'] ?? '';
-      _locationController.text = d['location']    ?? '';
+      _titleController.text = d['title'] ?? '';
+      _descController.text = d['description'] ?? '';
+      _locationController.text = d['location'] ?? '';
       _maxTraineesController.text =
           (d['maxTrainees'] ?? d['maxtrainees'] ?? '').toString();
-      _isPaid        = d['isPaid']   ?? false;
-      _internshipType = d['type'];      // already converted to String by repo
-      _duration       = d['duration']; // already "3 months" etc.
+      _isPaid = d['isPaid'] ?? false;
+      _internshipType = d['type'];
+      _duration = d['duration'];
 
-      // deadline
       final deadline =
       (d['applicationDeadline'] ?? d['deadline'] ?? '').toString();
       if (deadline.isNotEmpty) {
         _deadlineController.text = deadline.split('T')[0];
       }
 
-      // ✅ FIX: safe cast — بييجي List<dynamic> من الـ API
       final rawSkills = d['requiredSkills'] ?? d['skills'] ?? [];
       if (rawSkills is List) {
         _skills = rawSkills.map((e) => e.toString()).toList();
       }
 
-      // requirements
       final rawReqs = d['requirements'] ?? [];
       if (rawReqs is List) {
         _requirementsController.text =
@@ -122,8 +117,7 @@ class _CreateEditInternshipScreenState
     if (_duration == null) _errors['duration'] = 'Duration is required';
     if (_deadlineController.text.trim().isEmpty)
       _errors['deadline'] = 'Application deadline is required';
-    if ((_internshipType == "On-site 🏢" ||
-        _internshipType == "Hybrid 🔄") &&
+    if ((_internshipType == "On-site 🏢" || _internshipType == "Hybrid 🔄") &&
         _locationController.text.trim().isEmpty) {
       _errors['location'] =
       'Location is required for on-site/hybrid internships';
@@ -170,6 +164,7 @@ class _CreateEditInternshipScreenState
           description: _descController.text.trim(),
           requiredSkills: _skills,
           requirements: requirements,
+          // ✅ لا يوجد status — الـ API مش بيقبله
         );
       } else {
         response = await _internshipRepo.createInternship(
@@ -183,6 +178,7 @@ class _CreateEditInternshipScreenState
           description: _descController.text.trim(),
           requiredSkills: _skills,
           requirements: requirements,
+          // ✅ لا يوجد status — الـ API مش بيقبله
         );
       }
 
@@ -258,8 +254,7 @@ class _CreateEditInternshipScreenState
     );
     if (picked != null) {
       setState(() {
-        _deadlineController.text =
-            DateFormat('yyyy-MM-dd').format(picked);
+        _deadlineController.text = DateFormat('yyyy-MM-dd').format(picked);
         _errors['deadline'] = null;
       });
     }
@@ -325,8 +320,7 @@ class _CreateEditInternshipScreenState
                   children: _errors.values
                       .where((e) => e != null)
                       .map((e) => Text("• $e",
-                      style:
-                      const TextStyle(color: Colors.red)))
+                      style: const TextStyle(color: Colors.red)))
                       .toList(),
                 ),
               ),
@@ -438,30 +432,26 @@ class _CreateEditInternshipScreenState
                         decoration: InputDecoration(
                           hintText: "Add a skill",
                           border: OutlineInputBorder(
-                              borderRadius:
-                              BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(8)),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius:
-                            BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(
-                                color: Color(0xff1676C4),
-                                width: 2),
+                                color: Color(0xff1676C4), width: 2),
                           ),
                         ),
+                        onSubmitted: (_) => _addSkill(),
                       ),
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton(
                       onPressed: _addSkill,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                        const Color(0xff1676C4),
+                        backgroundColor: const Color(0xff1676C4),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 20, vertical: 16),
                         shape: RoundedRectangleBorder(
-                            borderRadius:
-                            BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       child: const Text('Add'),
                     ),
@@ -475,8 +465,7 @@ class _CreateEditInternshipScreenState
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(8),
-                      border:
-                      Border.all(color: Colors.grey[300]!),
+                      border: Border.all(color: Colors.grey[300]!),
                     ),
                     child: Column(
                       children: [
@@ -486,8 +475,7 @@ class _CreateEditInternshipScreenState
                         Text(
                           'No skills added yet.',
                           style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 13),
+                              color: Colors.grey[600], fontSize: 13),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -502,16 +490,13 @@ class _CreateEditInternshipScreenState
                         .entries
                         .map((entry) => Chip(
                       label: Text(entry.value),
-                      deleteIcon: const Icon(
-                          Icons.close,
-                          size: 18),
+                      deleteIcon:
+                      const Icon(Icons.close, size: 18),
                       onDeleted: () =>
                           _removeSkill(entry.key),
-                      backgroundColor: const Color(
-                          0xff1676C4)
-                          .withOpacity(0.1),
-                      deleteIconColor:
-                      const Color(0xff1676C4),
+                      backgroundColor:
+                      const Color(0xff1676C4).withOpacity(0.1),
+                      deleteIconColor: const Color(0xff1676C4),
                     ))
                         .toList(),
                   ),
@@ -527,8 +512,7 @@ class _CreateEditInternshipScreenState
                 TextAreaWidget(
                   controller: _requirementsController,
                   label: "Requirements",
-                  hint:
-                  "Enter each requirement on a separate line.",
+                  hint: "Enter each requirement on a separate line.",
                   maxLines: 8,
                 ),
               ],
@@ -556,39 +540,20 @@ class _CreateEditInternshipScreenState
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () => _save(false),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.grey[700],
-                      side: BorderSide(color: Colors.grey[400]!),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius.circular(12)),
-                    ),
-                    child: const Text("Draft"),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed:
-                    _isLoading ? null : () => _save(true),
+                  child: ElevatedButton.icon(
+                    onPressed: _isLoading ? null : () => _save(true),
+                    icon: Icon(isEdit
+                        ? Icons.save_outlined
+                        : Icons.publish_outlined),
+                    label: Text(isEdit ? "Save Changes" : "Publish"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                      const Color(0xff1676C4),
+                      backgroundColor: const Color(0xff1676C4),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 14),
+                      padding:
+                      const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: Text(
-                        isEdit ? "Save Changes" : "Publish"),
                   ),
                 ),
               ],

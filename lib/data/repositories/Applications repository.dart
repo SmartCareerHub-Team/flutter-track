@@ -13,7 +13,7 @@ class ApplicationsRepository {
     _dio = Dio(BaseOptions(
       connectTimeout: const Duration(minutes: 5),
       receiveTimeout: const Duration(minutes: 10),
-      sendTimeout:    const Duration(minutes: 10),
+      sendTimeout: const Duration(minutes: 10),
       headers: {'Accept': 'application/json'},
     ));
 
@@ -43,32 +43,45 @@ class ApplicationsRepository {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // STEP 1: جيب كل الـ Jobs الخاصة بالـ company
+  // JOBS
   // ─────────────────────────────────────────────────────────────
   Future<List<int>> _getCompanyJobIds() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final companyName = prefs.getString('company_name') ?? '';
+
+      debugPrint('🏢 [JOBS LIST] Filtering for companyName="$companyName"');
+
       final response = await _dio.get(
         '$_serverBase/api/Jobs',
         options: Options(validateStatus: (s) => s! < 500),
       );
-
-      debugPrint('📦 [JOBS LIST] Status: ${response.statusCode}');
-      debugPrint('📦 [JOBS LIST] Data: ${response.data}');
 
       if (response.statusCode == 200) {
         List<dynamic> raw = [];
         if (response.data is List) {
           raw = response.data as List;
         } else if (response.data is Map) {
-          raw = (response.data['data'] ?? response.data['items'] ?? []) as List;
+          raw = (response.data['data'] ??
+              response.data['items'] ??
+              response.data['jobs'] ??
+              []) as List;
         }
 
-        final ids = raw
-            .map((e) => int.tryParse((e['id'] ?? e['jobId'] ?? 0).toString()) ?? 0)
+        final filtered = companyName.isNotEmpty
+            ? raw.where((e) {
+          final name = (e['companyName'] ?? '').toString().toLowerCase();
+          return name == companyName.toLowerCase();
+        }).toList()
+            : raw;
+
+        final ids = filtered
+            .map((e) =>
+        int.tryParse((e['id'] ?? e['jobId'] ?? 0).toString()) ?? 0)
             .where((id) => id > 0)
             .toList();
 
-        debugPrint('✅ [JOBS LIST] Found ${ids.length} job IDs: $ids');
+        debugPrint('✅ [JOBS LIST] Total: ${raw.length} → Company jobs: ${ids.length} → IDs: $ids');
         return ids;
       }
     } catch (e) {
@@ -77,75 +90,144 @@ class ApplicationsRepository {
     return [];
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // STEP 2: جيب الـ applicants لكل job
-  // GET /api/Jobs/{id}/applicants
-  // ─────────────────────────────────────────────────────────────
   Future<List<ApplicationModel>> getApplicantsByJobId(int jobId) async {
     try {
-      final endpoint = '$_serverBase/api/Jobs/$jobId/applicants';
-      debugPrint('📤 [APPLICANTS] Fetching for jobId=$jobId');
-
       final response = await _dio.get(
-        endpoint,
+        '$_serverBase/api/Jobs/$jobId/applicants',
         options: Options(validateStatus: (s) => s! < 500),
       );
-
-      debugPrint('📥 [APPLICANTS] Status: ${response.statusCode} ← $endpoint');
-      debugPrint('📥 [APPLICANTS] Data: ${response.data}');
 
       if (response.statusCode == 200) {
         List<dynamic> raw = [];
         if (response.data is List) {
           raw = response.data as List;
         } else if (response.data is Map) {
-          raw = (response.data['data']       ??
+          raw = (response.data['data'] ??
               response.data['applicants'] ??
-              response.data['items']      ??
+              response.data['items'] ??
               []) as List;
         }
 
-        debugPrint('✅ [APPLICANTS] Found ${raw.length} applicants for job $jobId');
+        debugPrint('✅ [JOB APPLICANTS] Found ${raw.length} for job $jobId');
         if (raw.isNotEmpty) {
           debugPrint('🔑 Keys: ${(raw[0] as Map).keys.toList()}');
-          debugPrint('🔍 First: ${raw[0]}');
         }
 
         return raw.map((e) {
           final map = Map<String, dynamic>.from(e);
-          // ✅ أضف الـ jobId للـ map عشان نعرف جاي من أنهي job
           map['_jobId'] = jobId;
-          map['applicationType'] = 'Job'; // ✅ مهم للـ filter في الـ screen
+          map['applicationType'] = 'Job';
           return ApplicationModel.fromJson(map);
         }).toList();
       }
     } catch (e) {
-      debugPrint('❌ [APPLICANTS] Error for job $jobId: $e');
+      debugPrint('❌ [JOB APPLICANTS] Error for job $jobId: $e');
     }
     return [];
   }
 
   // ─────────────────────────────────────────────────────────────
-  // GET ALL APPLICATIONS = كل الـ jobs × applicants كل job
+  // INTERNSHIPS
+  // ─────────────────────────────────────────────────────────────
+  Future<List<int>> _getCompanyInternshipIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final companyName = prefs.getString('company_name') ?? '';
+
+      debugPrint('🏢 [INTERNSHIPS LIST] Filtering for companyName="$companyName"');
+
+      final response = await _dio.get(
+        '$_serverBase/api/Internships',
+        options: Options(validateStatus: (s) => s! < 500),
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> raw = [];
+        if (response.data is List) {
+          raw = response.data as List;
+        } else if (response.data is Map) {
+          raw = (response.data['data'] ??
+              response.data['items'] ??
+              response.data['internships'] ??
+              []) as List;
+        }
+
+        final filtered = companyName.isNotEmpty
+            ? raw.where((e) {
+          final name = (e['companyName'] ?? '').toString().toLowerCase();
+          return name == companyName.toLowerCase();
+        }).toList()
+            : raw;
+
+        final ids = filtered
+            .map((e) =>
+        int.tryParse((e['id'] ?? e['internshipId'] ?? 0).toString()) ?? 0)
+            .where((id) => id > 0)
+            .toList();
+
+        debugPrint('✅ [INTERNSHIPS LIST] Total: ${raw.length} → Company internships: ${ids.length} → IDs: $ids');
+        return ids;
+      }
+    } catch (e) {
+      debugPrint('❌ [INTERNSHIPS LIST] Error: $e');
+    }
+    return [];
+  }
+
+  Future<List<ApplicationModel>> getApplicantsByInternshipId(int internshipId) async {
+    try {
+      final response = await _dio.get(
+        '$_serverBase/api/Internships/$internshipId/applicants',
+        options: Options(validateStatus: (s) => s! < 500),
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> raw = [];
+        if (response.data is List) {
+          raw = response.data as List;
+        } else if (response.data is Map) {
+          raw = (response.data['data'] ??
+              response.data['applicants'] ??
+              response.data['items'] ??
+              []) as List;
+        }
+
+        debugPrint('✅ [INTERNSHIP APPLICANTS] Found ${raw.length} for internship $internshipId');
+        if (raw.isNotEmpty) {
+          debugPrint('🔑 Keys: ${(raw[0] as Map).keys.toList()}');
+        }
+
+        return raw.map((e) {
+          final map = Map<String, dynamic>.from(e);
+          map['_internshipId'] = internshipId;
+          map['applicationType'] = 'Internship';
+          return ApplicationModel.fromJson(map);
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('❌ [INTERNSHIP APPLICANTS] Error for internship $internshipId: $e');
+    }
+    return [];
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // GET ALL = Jobs + Internships
   // ─────────────────────────────────────────────────────────────
   Future<List<ApplicationModel>> getMyApplications() async {
     try {
-      // Step 1: جيب الـ job IDs
-      final jobIds = await _getCompanyJobIds();
+      final jobIds        = await _getCompanyJobIds();
+      final internshipIds = await _getCompanyInternshipIds();
 
-      if (jobIds.isEmpty) {
-        debugPrint('⚠️ [APPLICATIONS] No jobs found — returning empty');
-        return [];
-      }
+      final futures = [
+        ...jobIds.map((id) => getApplicantsByJobId(id)),
+        ...internshipIds.map((id) => getApplicantsByInternshipId(id)),
+      ];
 
-      // Step 2: جيب الـ applicants لكل job بالتوازي
-      final futures = jobIds.map((id) => getApplicantsByJobId(id));
-      final results = await Future.wait(futures);
-
-      // Step 3: ادمج كل النتائج
+      final results         = await Future.wait(futures);
       final allApplications = results.expand((list) => list).toList();
 
-      debugPrint('✅ [APPLICATIONS] Total: ${allApplications.length} applicants across ${jobIds.length} jobs');
+      debugPrint('✅ [APPLICATIONS] Total: ${allApplications.length} '
+          '(${jobIds.length} jobs + ${internshipIds.length} internships)');
       return allApplications;
     } catch (e) {
       debugPrint('❌ [APPLICATIONS] getMyApplications error: $e');
@@ -154,42 +236,42 @@ class ApplicationsRepository {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // UPDATE STATUS — PATCH /api/Jobs/{id}/status
+  // UPDATE STATUS
+  // بيحدد تلقائياً Jobs أو Internships حسب الـ applicationType
   // ─────────────────────────────────────────────────────────────
-  Future<bool> updateApplicationStatus(int applicationId, String status) async {
-    // ✅ PATCH من الـ Swagger
-    final endpoints = [
-      '$_serverBase/api/Jobs/$applicationId/status',
-      '$_serverBase/api/Jobs/applicants/$applicationId/status',
-    ];
+  Future<bool> updateApplicationStatus(
+      int id, int applicationId, String status,
+      {bool isInternship = false}) async {
+    final type     = isInternship ? 'Internships' : 'Jobs';
+    final endpoint = '$_serverBase/api/$type/$id/applicants/$applicationId/status';
 
-    for (final endpoint in endpoints) {
-      try {
-        debugPrint('📤 [UPDATE STATUS] PATCH $endpoint | status=$status');
+    try {
+      debugPrint('📤 [UPDATE STATUS] PATCH $endpoint | status=$status');
 
-        final response = await _dio.patch(
-          endpoint,
-          data: {'status': status},
-          options: Options(
-            validateStatus: (s) => s! < 500,
-            headers: {'Content-Type': 'application/json'},
-          ),
-        );
+      final response = await _dio.patch(
+        endpoint,
+        data: {'status': status},
+        options: Options(
+          validateStatus: (s) => s! < 500,
+          headers: {'Content-Type': 'application/json'},
+        ),
+      );
 
-        debugPrint('📥 [UPDATE STATUS] ${response.statusCode}');
+      debugPrint('📥 [UPDATE STATUS] ${response.statusCode}');
 
-        if (response.statusCode == 200 || response.statusCode == 204) {
-          debugPrint('✅ [UPDATE STATUS] Success!');
-          return true;
-        }
-        if (response.statusCode == 404) continue;
-      } on DioException catch (e) {
-        if (e.response?.statusCode == 404) continue;
-        debugPrint('❌ [UPDATE STATUS] Error: ${e.message}');
-      } catch (e) {
-        debugPrint('❌ [UPDATE STATUS] Error: $e');
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        debugPrint('✅ [UPDATE STATUS] Success!');
+        return true;
       }
+
+      debugPrint('⚠️ [UPDATE STATUS] Unexpected: ${response.statusCode}');
+      return false;
+    } on DioException catch (e) {
+      debugPrint('❌ [UPDATE STATUS] DioException: ${e.message}');
+      return false;
+    } catch (e) {
+      debugPrint('❌ [UPDATE STATUS] Error: $e');
+      return false;
     }
-    return false;
   }
 }

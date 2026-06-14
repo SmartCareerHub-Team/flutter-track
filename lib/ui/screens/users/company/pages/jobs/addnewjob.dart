@@ -71,9 +71,15 @@ class _CreateEditJobScreenState extends State<CreateEditJobScreen> {
     if (widget.jobData != null) {
       final job = widget.jobData!;
 
+      // ── Debug: طباعة كل الـ fields الجاية من الـ API ──
+      debugPrint("🔍 [JOB DATA KEYS]: ${job.keys.toList()}");
+      debugPrint("🔍 [DEADLINE RAW]: ${job['deadline']}");
+      debugPrint("🔍 [APPLICATION DEADLINE]: ${job['applicationDeadline']}");
+      debugPrint("🔍 [CLOSING DATE]: ${job['closingDate']}");
+
       _titleController.text    = job['title'] ?? '';
       _descController.text     = job['description'] ?? '';
-      _locationController.text = job['location'] ?? '';
+      _locationController.text = job['location'] == 'Remote' ? '' : (job['location'] ?? '');
       _logoPath                = job['companyLogo'];
       _locationType            = job['locationType'] ?? job['jobType'];
       _experienceLevel         = job['experienceLevel'];
@@ -89,7 +95,19 @@ class _CreateEditJobScreenState extends State<CreateEditJobScreen> {
         _salaryMaxController.text = job['salaryMax']?.toString() ?? '';
       }
 
-      _deadlineController.text = job['deadline']?.toString().split('T')[0] ?? '';
+      // ── Deadline: جرب كل الأسماء الممكنة للـ field ──
+      final rawDeadline = job['deadline'] ??
+          job['applicationDeadline'] ??
+          job['closingDate'] ??
+          job['expiry'] ??
+          job['expiryDate'] ??
+          '';
+
+      _deadlineController.text = rawDeadline.toString().isNotEmpty
+          ? rawDeadline.toString().split('T')[0]
+          : '';
+
+      debugPrint("🔍 [DEADLINE FINAL]: ${_deadlineController.text}");
 
       _requirements = _parseListField(job['requirements']);
       _skills       = _parseListField(job['requiredSkills'] ?? job['skills']);
@@ -162,7 +180,7 @@ class _CreateEditJobScreenState extends State<CreateEditJobScreen> {
       }
 
       final String jobTypeToSend = _locationType!;
-      final String locationToSend = _locationType == 'Remote'  // ✅ fix
+      final String locationToSend = _locationType == 'Remote'
           ? 'Remote'
           : _locationController.text.trim();
 
@@ -178,6 +196,7 @@ class _CreateEditJobScreenState extends State<CreateEditJobScreen> {
           jobType:         jobTypeToSend,
           location:        locationToSend,
           salaryRange:     salaryRange,
+          deadline:        _deadlineController.text.trim(), // ✅ deadline
           companyLogo:     logoFile,
         );
       } else {
@@ -189,6 +208,7 @@ class _CreateEditJobScreenState extends State<CreateEditJobScreen> {
           jobType:         jobTypeToSend,
           location:        locationToSend,
           salaryRange:     salaryRange,
+          deadline:        _deadlineController.text.trim(), // ✅ deadline
           companyLogo:     logoFile,
         );
       }
@@ -595,25 +615,7 @@ class _CreateEditJobScreenState extends State<CreateEditJobScreen> {
             else
               Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading
-                          ? null
-                          : () => _saveJob(isDraft: true),
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text("Save Draft"),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xff1676C4),
-                        side: const BorderSide(
-                            color: Color(0xff1676C4), width: 2),
-                        padding:
-                        const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
+
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed:

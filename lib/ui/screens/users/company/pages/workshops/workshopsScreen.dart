@@ -277,7 +277,7 @@ class _WorkshopsScreenState extends State<WorkshopsScreen> {
       child: Row(children: [
         Expanded(child: TextField(
           decoration: InputDecoration(
-            hintText: "Search workshops...",
+            hintText: "Search ",
             prefixIcon: const Icon(Icons.search, color: Color(0xff1676C4)),
             filled: true, fillColor: Colors.white,
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.grey)),

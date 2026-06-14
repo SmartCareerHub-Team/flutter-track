@@ -23,12 +23,26 @@ class EventRepository {
       onRequest: (options, handler) async {
         final prefs = await SharedPreferences.getInstance();
         final token = prefs.getString('company_token');
-        if (token != null) {
+
+        if (token != null && token.isNotEmpty) {
           options.headers['Authorization'] = 'Bearer $token';
           debugPrint("✅ [AUTH] Token attached: ${token.substring(0, 20)}...");
         } else {
-          debugPrint("🛑 [AUTH] Warning: No token found!");
+          debugPrint("🛑 [AUTH] No company token found — rejecting request");
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response(
+                requestOptions: options,
+                statusCode: 401,
+                statusMessage: "Unauthorized: No company token found",
+              ),
+              type: DioExceptionType.badResponse,
+            ),
+          );
+          return;
         }
+
         debugPrint("📤 [REQUEST] ${options.method} ${options.uri}");
         return handler.next(options);
       },
@@ -45,38 +59,31 @@ class EventRepository {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // ✅ تحديد نوع الـ banner:
-  //   'url'    → رابط http/https جاهز
-  //   'path'   → relative path محتاج base URL
-  //   'base64' → base64 image data (الـ API بيبعت الصورة كـ base64 في bannerUrl!)
-  //   null     → مفيش صورة
+  // HELPERS
   // ─────────────────────────────────────────────────────────────────────────
+
   Map<String, dynamic> _processBanner(dynamic rawValue) {
     if (rawValue == null) return {'type': null, 'value': null};
     final s = rawValue.toString().trim();
     if (s.isEmpty || s.toLowerCase() == 'null') return {'type': null, 'value': null};
 
-    // Full URL
     if (s.startsWith('http://') || s.startsWith('https://')) {
       debugPrint("🖼️ [BANNER] Full URL: ${s.substring(0, s.length.clamp(0, 80))}");
       return {'type': 'url', 'value': s};
     }
 
-    // Relative path (uploads/...)
     if (s.startsWith('/uploads/') || s.startsWith('uploads/')) {
       final fixed = s.startsWith('/') ? "$_serverBase$s" : "$_serverBase/$s";
       debugPrint("🖼️ [BANNER] Path → Fixed URL: $fixed");
       return {'type': 'url', 'value': fixed};
     }
 
-    // ✅ Base64 detection — الـ API بيرجع JPEG base64 يبدأ بـ /9j/
     if (s.startsWith('/9j/') || s.startsWith('iVBOR') || s.startsWith('data:image')) {
       final clean = s.startsWith('data:image') ? s.substring(s.indexOf(',') + 1) : s;
       debugPrint("🖼️ [BANNER] Base64 image detected (len: ${clean.length})");
       return {'type': 'base64', 'value': clean};
     }
 
-    // أي relative path تاني
     if (s.startsWith('/')) {
       final fixed = "$_serverBase$s";
       debugPrint("🖼️ [BANNER] Generic path → Fixed: $fixed");
@@ -101,6 +108,7 @@ class EventRepository {
   // ─────────────────────────────────────────────────────────────────────────
   // GET ALL
   // ─────────────────────────────────────────────────────────────────────────
+
   Future<List<Map<String, dynamic>>> getAllEvents() async {
     try {
       debugPrint("📤 [GET ALL EVENTS] Fetching from: $_baseUrl");
@@ -126,24 +134,22 @@ class EventRepository {
         }
 
         return result.map((e) {
-          // ✅ الأولوية لـ bannerUrl (الاسم الفعلي في الـ API) ثم البدائل
           final rawValue =
-              e['bannerUrl'] ??
-                  e['banner'] ??
-                  e['bannerPath'] ??
-                  e['coverImage'] ??
-                  e['coverImageUrl'] ??
+              e['bannerUrl']      ??
+                  e['banner']         ??
+                  e['bannerPath']     ??
+                  e['coverImage']     ??
+                  e['coverImageUrl']  ??
                   e['coverImagePath'] ??
-                  e['image'] ??
+                  e['image']          ??
                   e['imageUrl'];
 
           final info = _processBanner(rawValue);
 
           return {
             ...e,
-            'bannerType':  info['type'],   // 'url' | 'base64' | null
-            'bannerValue': info['value'],  // الـ URL أو base64 string
-            // للتوافق مع الكود القديم في events_screen
+            'bannerType':  info['type'],
+            'bannerValue': info['value'],
             'banner': info['type'] == 'url' ? info['value'] : null,
           };
         }).toList();
@@ -159,6 +165,7 @@ class EventRepository {
   // ─────────────────────────────────────────────────────────────────────────
   // CREATE
   // ─────────────────────────────────────────────────────────────────────────
+
   Future<Response?> createEvent({
     required String title,
     required String description,
@@ -212,15 +219,21 @@ class EventRepository {
       ]);
 
       if (banner != null && banner.existsSync()) {
-        formData.files.add(MapEntry("Banner",
-            await MultipartFile.fromFile(banner.path,
-                filename: banner.path.split('/').last,
-                contentType: DioMediaType.parse(_getMimeType(banner.path)))));
+        formData.files.add(MapEntry(
+          "Banner",
+          await MultipartFile.fromFile(
+            banner.path,
+            filename:    banner.path.split('/').last,
+            contentType: DioMediaType.parse(_getMimeType(banner.path)),
+          ),
+        ));
       }
 
-      final response = await _dio.post(_baseUrl,
-          data: formData,
-          options: Options(validateStatus: (s) => s! < 500));
+      final response = await _dio.post(
+        _baseUrl,
+        data:    formData,
+        options: Options(validateStatus: (s) => s! < 500),
+      );
       debugPrint("✅ [CREATE EVENT] Status: ${response.statusCode}");
       return response;
     } catch (e) {
@@ -232,6 +245,7 @@ class EventRepository {
   // ─────────────────────────────────────────────────────────────────────────
   // UPDATE
   // ─────────────────────────────────────────────────────────────────────────
+
   Future<Response?> updateEvent({
     required String eventId,
     required String title,
@@ -286,15 +300,21 @@ class EventRepository {
       ]);
 
       if (banner != null && banner.existsSync()) {
-        formData.files.add(MapEntry("Banner",
-            await MultipartFile.fromFile(banner.path,
-                filename: banner.path.split('/').last,
-                contentType: DioMediaType.parse(_getMimeType(banner.path)))));
+        formData.files.add(MapEntry(
+          "Banner",
+          await MultipartFile.fromFile(
+            banner.path,
+            filename:    banner.path.split('/').last,
+            contentType: DioMediaType.parse(_getMimeType(banner.path)),
+          ),
+        ));
       }
 
-      final response = await _dio.put("$_baseUrl/$eventId",
-          data: formData,
-          options: Options(validateStatus: (s) => s! < 500));
+      final response = await _dio.put(
+        "$_baseUrl/$eventId",
+        data:    formData,
+        options: Options(validateStatus: (s) => s! < 500),
+      );
       debugPrint("✅ [UPDATE EVENT] Status: ${response.statusCode}");
       return response;
     } catch (e) {
@@ -306,10 +326,35 @@ class EventRepository {
   // ─────────────────────────────────────────────────────────────────────────
   // DELETE
   // ─────────────────────────────────────────────────────────────────────────
+
   Future<Response?> deleteEvent(dynamic eventId) async {
     try {
-      return await _dio.delete("$_baseUrl/${eventId.toString()}",
-          options: Options(validateStatus: (s) => s! < 500));
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('company_token');
+
+      debugPrint("🗑️ [DELETE EVENT] id: $eventId");
+      debugPrint("🔑 [DELETE EVENT] token: ${token != null ? '${token.substring(0, 20)}...' : 'NULL ❌'}");
+
+      if (token == null || token.isEmpty) {
+        debugPrint("🛑 [DELETE EVENT] Aborted — no company token found");
+        return Response(
+          requestOptions: RequestOptions(path: "$_baseUrl/$eventId"),
+          statusCode: 401,
+          statusMessage: "Unauthorized: No company token found",
+        );
+      }
+
+      final response = await _dio.delete(
+        "$_baseUrl/${eventId.toString()}",
+        options: Options(
+          validateStatus: (s) => s! < 500,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      debugPrint("📥 [DELETE EVENT] Status: ${response.statusCode}");
+      debugPrint("📥 [DELETE EVENT] Data: ${response.data}");
+      return response;
     } catch (e) {
       debugPrint("❌ deleteEvent Error: $e");
       rethrow;

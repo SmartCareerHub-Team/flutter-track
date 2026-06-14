@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../../../data/models/university/university-model.dart';
+import '../../../../auth/login/login_screen.dart';
 import 'EdituniversityProfileScreen.dart';
 
 class UniversityProfileScreen extends StatefulWidget {
@@ -149,6 +150,44 @@ class _UniversityProfileScreenState extends State<UniversityProfileScreen> {
       return words[0].substring(0, words[0].length.clamp(0, 4)).toUpperCase();
     }
     return words.map((w) => w[0].toUpperCase()).take(5).join();
+  }
+
+  // ✅ Logout Function
+  Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('university_user_data');
+      await prefs.remove('university_token');
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+        );
+      }
+    }
   }
 
   // ✅ Logo Widget — نفس منطق الـ company بالظبط
@@ -301,6 +340,7 @@ class _UniversityProfileScreenState extends State<UniversityProfileScreen> {
                       fontSize: 18,
                       fontWeight: FontWeight.w500)),
               const Spacer(),
+              // ✅ زرار Edit
               IconButton(
                 icon: const Icon(Icons.edit, color: Colors.white),
                 onPressed: () async {
@@ -312,6 +352,12 @@ class _UniversityProfileScreenState extends State<UniversityProfileScreen> {
                   );
                   if (updated == true && mounted) _loadProfile();
                 },
+              ),
+              // ✅ زرار Logout
+              IconButton(
+                icon: const Icon(Icons.logout, color: Colors.red),
+                tooltip: 'Logout',
+                onPressed: _logout,
               ),
             ]),
           ),

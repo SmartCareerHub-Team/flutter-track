@@ -408,7 +408,7 @@ class _EventsScreenState extends State<EventsScreen> {
     child: Row(children: [
       Expanded(child: TextField(
         decoration: InputDecoration(
-            hintText: "Search events...",
+            hintText: "Search ",
             prefixIcon: const Icon(Icons.search, color: Color(0xff1676C4)),
             filled: true, fillColor: Colors.white,
             enabledBorder: OutlineInputBorder(
